@@ -16,17 +16,24 @@ RUN apt-get update && apt-get install -y \
 # 3. 安裝 Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# 4. 將程式碼複製到容器內
-COPY . /var/www/html/
-
-# 5. 執行 composer install
+# 4. 【優化點】先複製套件清單
 WORKDIR /var/www/html
-# 加上 --ignore-platform-reqs 可以跳過環境檢查，避免因為缺少特定擴充而報錯
+COPY composer.json composer.lock* ./
+
+# 5. 【優化點】先執行安裝 (這樣只要 composer.json 沒改，這步就會被快取，超級快！)
 RUN if [ -f "composer.json" ]; then \
-    composer install --no-dev --optimize-autoloader --ignore-platform-reqs; \
+    composer install --no-dev --no-scripts --no-autoloader --ignore-platform-reqs; \
     fi
 
-# 6. 設定權限
+# 6. 這裡才複製剩下的所有程式碼
+COPY . /var/www/html/
+
+# 7. 最後才完成 Autoload (因為程式碼複製進來了)
+RUN if [ -f "composer.json" ]; then \
+    composer dump-autoload --optimize; \
+    fi
+
+# 8. 設定權限
 RUN chown -R www-data:www-data /var/www/html/
 
 EXPOSE 80
