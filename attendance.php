@@ -359,6 +359,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // 以下僅限管理員
     if ($isAdmin) {
+        if ($action === 'bulk_delete') {
+            $ids = array_filter(array_map('intval', explode(',', $_POST['ids'] ?? '')));
+            if (!empty($ids)) {
+                $placeholders = implode(',', array_fill(0, count($ids), '?'));
+                try {
+                    $stmt = getDB()->prepare("DELETE FROM attendance WHERE id IN ({$placeholders})");
+                    $stmt->execute($ids);
+                    $message = "🗑️ 已刪除 {$stmt->rowCount()} 筆出勤紀錄";
+                    $msgType = 'success';
+                } catch (PDOException $e) {
+                    $message = '刪除失敗：' . $e->getMessage(); $msgType = 'error';
+                }
+            }
+        }
+
         if ($action === 'delete') {
             $id = (int)($_POST['id'] ?? 0);
             try {
@@ -604,11 +619,10 @@ if ($isAdmin && isset($_GET['edit_id'])) {
   <?php if($isAdmin): ?>
   <div class="filter-group" style="justify-content:flex-end">
     <label>&nbsp;</label>
-    <?php if($queryMode==='year'): ?>
-    <button type="submit" form="export-year-form" class="btn btn-purple" style="min-height:40px">📊 全員年報</button>
-    <?php else: ?>
-    <button type="submit" form="export-month-all-form" class="btn btn-purple" style="min-height:40px">📊 全員月報</button>
-    <?php endif; ?>
+    <button type="submit" form="export-year-form" class="btn btn-purple" id="btn-year-report"
+            style="min-height:40px;<?php echo $queryMode!=='year'?'display:none':''; ?>">📊 全員年報</button>
+    <button type="submit" form="export-month-all-form" class="btn btn-purple" id="btn-month-report"
+            style="min-height:40px;<?php echo $queryMode==='year'?'display:none':''; ?>">📊 全員月報</button>
   </div>
   <?php endif; ?>
 </form>
@@ -705,6 +719,7 @@ if ($isAdmin && isset($_GET['edit_id'])) {
   <div style="overflow-x:auto;padding:0 4px 4px">
   <table class="att-table">
     <thead><tr>
+      <?php if($isAdmin): ?><th><input type="checkbox" id="select-all" onclick="toggleSelectAll(this)" title="全選"></th><?php endif; ?>
       <th>日期</th><th>第一段</th><th>第二段</th>
       <?php if($selEmpType==='fulltime'): ?><th>有無休息</th><?php endif; ?>
       <th>工時(h)</th>
@@ -715,8 +730,21 @@ if ($isAdmin && isset($_GET['edit_id'])) {
     </tr></thead>
     <tbody>
     <?php foreach($attendances as $att): ?>
+    <?php
+        $wd = $att['work_date'];
+        $wdParts = explode('-', $wd);
+        $wdRoc = ((int)$wdParts[0]-1911).'-'.$wdParts[1].'-'.$wdParts[2];
+    ?>
     <tr>
-      <td><?php echo $att['work_date']; ?></td>
+      <?php if($isAdmin): ?>
+      <td><input type="checkbox" class="row-check" value="<?php echo $att['id']; ?>"></td>
+      <?php endif; ?>
+      <?php
+        $wd = $att['work_date'];
+        $wdParts = explode('-', $wd);
+        $wdRoc = ((int)$wdParts[0]-1911).'-'.$wdParts[1].'-'.$wdParts[2];
+      ?>
+      <td><?php echo $wdRoc; ?></td>
       <td><?php echo($att['s1_start']&&$att['s1_end'])?htmlspecialchars($att['s1_start']).'→'.htmlspecialchars($att['s1_end']):'—'; ?></td>
       <td><?php echo($att['s2_start']&&$att['s2_end'])?htmlspecialchars($att['s2_start']).'→'.htmlspecialchars($att['s2_end']):'—'; ?></td>
       <?php if($selEmpType==='fulltime'): ?><td><?php echo $att['has_break']?'✅ 有':'⚡ 無'; ?></td><?php endif; ?>
@@ -748,12 +776,56 @@ if ($isAdmin && isset($_GET['edit_id'])) {
   </table>
   </div>
 </div>
+
+<?php if($isAdmin): ?>
+<div id="bulk-delete-bar" style="display:none;background:white;border-radius:var(--radius-md);padding:12px 16px;margin-top:10px;box-shadow:var(--card-shadow);align-items:center;gap:10px;flex-wrap:wrap">
+  <span id="selected-count" style="font-size:0.88em;color:var(--grey-700)">已選 0 筆</span>
+  <form method="post" id="bulk-delete-form" onsubmit="return confirmBulkDelete()">
+    <input type="hidden" name="action" value="bulk_delete">
+    <input type="hidden" name="ids" id="bulk-ids" value="">
+    <button type="submit" class="btn btn-danger">🗑️ 刪除已選取</button>
+  </form>
+  <button type="button" class="btn btn-secondary btn-sm" onclick="clearSelection()">取消選取</button>
+</div>
+<?php endif; ?>
+
 </div><!-- /results-area -->
 <?php endif; ?>
 </div>
 
 <script>
-if (window.location.hash === '#edit') {
+function toggleSelectAll(cb) {
+    document.querySelectorAll('.row-check').forEach(c => c.checked = cb.checked);
+    updateBulkBar();
+}
+function updateBulkBar() {
+    const checked = document.querySelectorAll('.row-check:checked');
+    const bar = document.getElementById('bulk-delete-bar');
+    const cnt = document.getElementById('selected-count');
+    if (!bar) return;
+    if (checked.length > 0) {
+        bar.style.display = 'flex';
+        cnt.textContent = '已選 ' + checked.length + ' 筆';
+        document.getElementById('bulk-ids').value = Array.from(checked).map(c=>c.value).join(',');
+    } else {
+        bar.style.display = 'none';
+    }
+}
+function clearSelection() {
+    document.querySelectorAll('.row-check').forEach(c => c.checked = false);
+    const sa = document.getElementById('select-all');
+    if (sa) sa.checked = false;
+    updateBulkBar();
+}
+function confirmBulkDelete() {
+    const cnt = document.querySelectorAll('.row-check:checked').length;
+    return confirm('確定刪除已選取的 ' + cnt + ' 筆出勤紀錄？此操作無法復原！');
+}
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.row-check').forEach(cb => {
+        cb.addEventListener('change', updateBulkBar);
+    });
+});
     const el = document.getElementById('edit');
     if (el) setTimeout(() => el.scrollIntoView({behavior:'smooth',block:'start'}), 100);
 }
@@ -773,6 +845,11 @@ function switchQueryMode(mode) {
     document.querySelectorAll('.mode-tab').forEach((t,i) => {
         t.classList.toggle('active', (mode==='month'&&i===0)||(mode==='year'&&i===1));
     });
+    // 切換報表按鈕
+    const btnYear  = document.getElementById('btn-year-report');
+    const btnMonth = document.getElementById('btn-month-report');
+    if (btnYear)  btnYear.style.display  = mode === 'year'  ? '' : 'none';
+    if (btnMonth) btnMonth.style.display = mode === 'month' ? '' : 'none';
     // 切換模式時清除 searched 旗標，避免顯示前次查詢結果
     document.getElementById('searched-input').value = '';
     // 同時隱藏已顯示的結果區塊（若存在）
