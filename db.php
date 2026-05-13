@@ -18,11 +18,11 @@ function getDB(): PDO {
     static $pdo = null;
     if ($pdo !== null) return $pdo;
 
-    $host    = $_ENV['DB_HOST']    ?? $_SERVER['DB_HOST']    ?? 'gateway01.ap-northeast-1.prod.aws.tidbcloud.com';
+    $host    = $_ENV['DB_HOST']    ?? $_SERVER['DB_HOST']    ?? '';
     $port    = $_ENV['DB_PORT']    ?? $_SERVER['DB_PORT']    ?? '4000';
-    $dbname  = $_ENV['DB_NAME']    ?? $_SERVER['DB_NAME']    ?? 'water';
-    $user    = $_ENV['DB_USER']    ?? $_SERVER['DB_USER']    ?? '2fVv8RnCzd3hVVd.root';
-    $pass    = $_ENV['DB_PASS']    ?? $_SERVER['DB_PASS']    ?? 'mqFIZv8n2YujgJOA';
+    $dbname  = $_ENV['DB_NAME']    ?? $_SERVER['DB_NAME']    ?? '';
+    $user    = $_ENV['DB_USER']    ?? $_SERVER['DB_USER']    ?? '';
+    $pass    = $_ENV['DB_PASS']    ?? $_SERVER['DB_PASS']    ?? '';
     $charset = $_ENV['DB_CHARSET'] ?? $_SERVER['DB_CHARSET'] ?? 'utf8mb4';
 
     $dsn = "mysql:host={$host};port={$port};dbname={$dbname};charset={$charset}";
