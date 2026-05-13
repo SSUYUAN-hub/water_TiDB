@@ -51,8 +51,9 @@ if ($skipScan && $isSide2) {
             'shift1_end'  => $s1e,
             'shift2_start'=> $s2s,
             'shift2_end'  => $s2e,
-            'has_break'   => $s1['has_break']    ?? '1',
-            'apply_night' => $s1['apply_night']  ?? '0',
+            'has_break'   => $s1['has_break']   ?? '1',
+            'apply_night' => $s1['apply_night'] ?? '0',
+            'is_night'    => ($s1['apply_night'] ?? '0') === '1',
             'preview'     => [
                 'total_hours'    => round($previewHours, 2),
                 'salary'         => $previewSalary,
