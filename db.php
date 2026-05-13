@@ -25,13 +25,12 @@ function getDB(): PDO {
     $pass    = $_ENV['DB_PASS']    ?? $_SERVER['DB_PASS']    ?? '';
     $charset = $_ENV['DB_CHARSET'] ?? $_SERVER['DB_CHARSET'] ?? 'utf8mb4';
 
-    $dsn = "mysql:host={$host};port={$port};dbname={$dbname};charset={$charset}";
+    $dsn = "mysql:host={$host};port={$port};dbname={$dbname};charset={$charset};ssl-mode=REQUIRED";
 
     $pdo = new PDO($dsn, $user, $pass, [
         PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         PDO::ATTR_EMULATE_PREPARES   => false,
-        PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => false, // ← 加這行
     ]);
 
     return $pdo;
