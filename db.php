@@ -1,36 +1,38 @@
 <?php
+
 /**
  * 員工資料管理（MySQL PDO 版）
  * 取代原本的 employees.json 檔案儲存
  */
 
-// ── 載入 .env（若尚未載入）──────────────────────────────
-if (!isset($_ENV['DB_HOST'])) {
-    require_once __DIR__ . '/vendor/autoload.php';
-    $dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
-    $dotenv->load();
+// ── 載入環境變數（本地用 .env，Render 直接讀 $_ENV/$_SERVER）──
+if (!isset($_ENV['DB_HOST']) && !isset($_SERVER['DB_HOST'])) {
+    if (file_exists(__DIR__ . '/.env')) {
+        require_once __DIR__ . '/vendor/autoload.php';
+        $dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
+        $dotenv->load();
+    }
 }
 
-// ── 取得資料庫連線（單例）──────────────────────────────
 function getDB(): PDO {
     static $pdo = null;
     if ($pdo !== null) return $pdo;
 
-    $host    = $_ENV['DB_HOST']    ?? 'gateway01.ap-northeast-1.prod.aws.tidbcloud.com';
-    $port    = $_ENV['DB_PORT']    ?? '3306';
-    $dbname  = $_ENV['DB_NAME']    ?? 'water_test';
-    $user    = $_ENV['DB_USER']    ?? 'root';
-    $pass    = $_ENV['DB_PASS']    ?? '';
-    $charset = $_ENV['DB_CHARSET'] ?? 'utf8mb4';
+    $host    = $_ENV['DB_HOST']    ?? $_SERVER['DB_HOST']    ?? '127.0.0.1';
+    $port    = $_ENV['DB_PORT']    ?? $_SERVER['DB_PORT']    ?? '3306';
+    $dbname  = $_ENV['DB_NAME']    ?? $_SERVER['DB_NAME']    ?? 'water_test';
+    $user    = $_ENV['DB_USER']    ?? $_SERVER['DB_USER']    ?? 'root';
+    $pass    = $_ENV['DB_PASS']    ?? $_SERVER['DB_PASS']    ?? '';
+    $charset = $_ENV['DB_CHARSET'] ?? $_SERVER['DB_CHARSET'] ?? 'utf8mb4';
 
     $dsn = "mysql:host={$host};port={$port};dbname={$dbname};charset={$charset}";
 
     $pdo = new PDO($dsn, $user, $pass, [
-    PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-    PDO::ATTR_EMULATE_PREPARES   => false,
-    PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => false, // ← 加這行
-]);
+        PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES   => false,
+        PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => false, // ← 加這行
+    ]);
 
     return $pdo;
 }
@@ -42,7 +44,8 @@ function getDB(): PDO {
 /**
  * 取得所有員工（依建立日期降冪）
  */
-function getEmployees(): array {
+function getEmployees(): array
+{
     $stmt = getDB()->query('SELECT * FROM employees ORDER BY created_at DESC');
     return $stmt->fetchAll();
 }
@@ -50,7 +53,8 @@ function getEmployees(): array {
 /**
  * 依姓名取得單一員工，找不到回傳 null
  */
-function getEmployee(string $name): ?array {
+function getEmployee(string $name): ?array
+{
     $stmt = getDB()->prepare('SELECT * FROM employees WHERE name = ? LIMIT 1');
     $stmt->execute([$name]);
     $row = $stmt->fetch();
@@ -60,7 +64,8 @@ function getEmployee(string $name): ?array {
 /**
  * 新增員工，姓名重複回傳 false
  */
-function addEmployee(array $data): bool {
+function addEmployee(array $data): bool
+{
     try {
         $stmt = getDB()->prepare(
             'INSERT INTO employees (name, type, hourly_rate, night_allowance, created_at)
@@ -84,7 +89,8 @@ function addEmployee(array $data): bool {
 /**
  * 更新員工薪資設定，找不到回傳 false
  */
-function updateEmployee(string $name, array $data): bool {
+function updateEmployee(string $name, array $data): bool
+{
     $stmt = getDB()->prepare(
         'UPDATE employees
             SET type            = :type,
@@ -104,7 +110,8 @@ function updateEmployee(string $name, array $data): bool {
 /**
  * 刪除員工，找不到或有出勤紀錄時回傳 false
  */
-function deleteEmployee(string $name): bool {
+function deleteEmployee(string $name): bool
+{
     try {
         $stmt = getDB()->prepare('DELETE FROM employees WHERE name = ?');
         $stmt->execute([$name]);
@@ -124,7 +131,8 @@ function deleteEmployee(string $name): bool {
  * 寫入單日出勤紀錄
  * 同一員工同一天重複寫入時，以新資料覆蓋（UPDATE）
  */
-function saveAttendance(array $data): bool {
+function saveAttendance(array $data): bool
+{
     $sql = '
         INSERT INTO attendance
             (employee_name, work_date, s1_start, s1_end, s2_start, s2_end,
@@ -167,7 +175,8 @@ function saveAttendance(array $data): bool {
  * 查詢某員工某年月的出勤紀錄
  * $yearMonth 格式：'2026-04'
  */
-function getAttendanceByMonth(string $employeeName, string $yearMonth): array {
+function getAttendanceByMonth(string $employeeName, string $yearMonth): array
+{
     $stmt = getDB()->prepare(
         'SELECT * FROM attendance
           WHERE employee_name = ?
@@ -180,7 +189,8 @@ function getAttendanceByMonth(string $employeeName, string $yearMonth): array {
 /**
  * 查詢某員工某年全年的出勤紀錄（依月份分組）
  */
-function getAttendanceByYear(string $employeeName, string $year): array {
+function getAttendanceByYear(string $employeeName, string $year): array
+{
     $stmt = getDB()->prepare(
         'SELECT * FROM attendance
           WHERE employee_name = ?
@@ -200,7 +210,8 @@ function getAttendanceByYear(string $employeeName, string $year): array {
 /**
  * 查詢所有員工某年月的出勤紀錄（月份匯出用）
  */
-function getAllEmployeesAttendanceByMonth(string $yearMonth): array {
+function getAllEmployeesAttendanceByMonth(string $yearMonth): array
+{
     $stmt = getDB()->prepare(
         'SELECT * FROM attendance
           WHERE DATE_FORMAT(work_date, "%Y-%m") = ?
@@ -218,7 +229,8 @@ function getAllEmployeesAttendanceByMonth(string $yearMonth): array {
 /**
  * 查詢所有員工某年全年的出勤紀錄（年份匯出用）
  */
-function getAllEmployeesAttendanceByYear(string $year): array {
+function getAllEmployeesAttendanceByYear(string $year): array
+{
     $stmt = getDB()->prepare(
         'SELECT * FROM attendance
           WHERE YEAR(work_date) = ?
@@ -236,7 +248,8 @@ function getAllEmployeesAttendanceByYear(string $year): array {
 /**
  * 查詢所有員工某年月的出勤摘要（用於 admin 匯出統計）
  */
-function getAttendanceSummaryByMonth(string $yearMonth): array {
+function getAttendanceSummaryByMonth(string $yearMonth): array
+{
     $stmt = getDB()->prepare(
         'SELECT
             employee_name,
@@ -263,7 +276,8 @@ function getAttendanceSummaryByMonth(string $yearMonth): array {
  * 判斷是否觸發夜班津貼
  * 規則：下班時間超過 23:00，或凌晨 06:00 以前（跨夜）
  */
-function shouldApplyNightAllowance(string $endTime, int $nightAllowance): bool {
+function shouldApplyNightAllowance(string $endTime, int $nightAllowance): bool
+{
     if ($nightAllowance <= 0) return false;
     try {
         $end    = new DateTime($endTime);
