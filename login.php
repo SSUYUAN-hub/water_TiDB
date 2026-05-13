@@ -46,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errorMsg = '帳號或密碼錯誤';
             }
         } catch (PDOException $e) {
-            $errorMsg = '系統錯誤，請稍後再試';
+    $errorMsg = '系統錯誤：' . $e->getMessage(); // 暫時改這行
         }
     }
 }
