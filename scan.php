@@ -195,7 +195,7 @@ if (!$skipScan && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['card_i
             // 卡片年份在右半部（relX > 0.5），月份在更右側（relX > 0.8）
             // ══════════════════════════════════════════════════
             $fullText = $result['responses'][0]['textAnnotations'][0]['description'] ?? '';
-            $yearMonth = date('Y-m'); // 預設當月
+            $yearMonth = $_POST['prefill_yearmonth'] ?? date('Y-m');
 
             // 取圖片 Y 和 X 範圍
             $allY    = array_column($tokens, 'y');
