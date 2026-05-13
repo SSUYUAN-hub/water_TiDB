@@ -3,8 +3,10 @@ require_once __DIR__ . '/vendor/autoload.php';
 include_once __DIR__ . '/functions.php';
 include_once __DIR__ . '/db.php';
 
-$dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
-$dotenv->load();
+if (file_exists(__DIR__ . '/.env')) {
+    $dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
+    $dotenv->load();
+}
 $apiKey = $_ENV['GOOGLE_API_KEY'] ?? '';
 
 $employeeName  = $_POST['employee_name'] ?? '未命名';
