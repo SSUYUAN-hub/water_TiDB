@@ -656,7 +656,17 @@ if ($isAdmin && isset($_GET['edit_id'])) {
 <?php elseif(empty($attendances)): ?>
 <div class="empty-box" id="results-area">
   <div style="font-size:2em;margin-bottom:10px">📭</div>
-  <div><?php echo htmlspecialchars($selEmp); ?> 在 <?php echo $queryMode==='year'?((int)$selYear-1911).'年':$selYM; ?> 沒有出勤紀錄</div>
+  <div><?php
+    echo htmlspecialchars($selEmp);
+    echo ' 在 ';
+    if ($queryMode==='year') {
+        echo ((int)$selYear-1911).'年';
+    } else {
+        $ymP = explode('-', $selYM);
+        echo ((int)$ymP[0]-1911).'-'.$ymP[1];
+    }
+    echo ' 沒有出勤紀錄';
+  ?></div>
 </div>
 
 <?php else: ?>
@@ -826,6 +836,8 @@ document.addEventListener('DOMContentLoaded', function() {
         cb.addEventListener('change', updateBulkBar);
     });
 });
+
+if (window.location.hash === '#edit') {
     const el = document.getElementById('edit');
     if (el) setTimeout(() => el.scrollIntoView({behavior:'smooth',block:'start'}), 100);
 }
