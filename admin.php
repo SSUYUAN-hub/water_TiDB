@@ -259,19 +259,25 @@ $allUsers  = getDB()->query(
 <style>
 .main-wrap { max-width: 1000px; }
 
-/* 新增員工表單 */
-.form-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+/* 新增員工/帳號表單 */
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+  align-items: flex-end;
+}
 .fg { display: flex; flex-direction: column; gap: 4px; }
 .fg label { font-size: 0.78em; color: var(--grey-500); white-space: nowrap; font-weight: 600; }
 .fg input, .fg select {
   padding: 9px 11px; border: 1.5px solid var(--grey-300);
   border-radius: var(--radius-sm); font-size: 0.9em;
   color: var(--grey-900); font-family: var(--font-body);
+  width: 100%;
 }
 .fg input:focus, .fg select:focus { outline: none; border-color: var(--green-600); }
-.fg-name input { width: 100px; }
-.fg-wage input  { width: 110px; }
-.fg-night input { width: 90px; }
+.fg-name input { width: 100%; }
+.fg-wage input  { width: 100%; }
+.fg-night input { width: 100%; }
 .btn-add    { background: var(--green-700); color: white; min-height: 40px; }
 .btn-save   { background: var(--blue-700); color: white; }
 .btn-export { background: var(--green-50); color: var(--green-700); border: 1.5px solid #A5D6A7; }
@@ -331,7 +337,7 @@ $allUsers  = getDB()->query(
 
 @media (max-width: 480px) {
   .emp-grid { grid-template-columns: 1fr; }
-  .form-row { flex-direction: column; }
+  .form-row { grid-template-columns: 1fr 1fr; }
   .fg input, .fg select { width: 100%; }
 }
 @media (min-width: 600px) {
@@ -567,22 +573,22 @@ function toggleWageLabel(id) {
         <div class="form-row">
             <div class="fg">
                 <label>帳號</label>
-                <input type="text" name="u_username" placeholder="登入帳號" required style="width:120px">
+                <input type="text" name="u_username" placeholder="登入帳號" required>
             </div>
             <div class="fg">
                 <label>密碼（至少6碼）</label>
-                <input type="password" name="u_password" placeholder="••••••" required style="width:120px">
+                <input type="password" name="u_password" placeholder="••••••" required>
             </div>
             <div class="fg">
                 <label>角色</label>
-                <select name="u_role" id="u-role-sel" onchange="toggleEmpSelect()" style="width:130px">
+                <select name="u_role" id="u-role-sel" onchange="toggleEmpSelect()">
                     <option value="admin">👑 管理員</option>
                     <option value="staff" selected>👤 員工</option>
                 </select>
             </div>
             <div class="fg" id="u-emp-field">
                 <label>對應員工</label>
-                <select name="u_employee_name" style="width:130px">
+                <select name="u_employee_name">
                     <option value="">— 請選擇 —</option>
                     <?php foreach ($employees as $e): ?>
                     <option value="<?php echo htmlspecialchars($e['name']); ?>">
