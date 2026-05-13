@@ -57,8 +57,7 @@ try {
 //  原有 Excel 寫入邏輯（保留不動）
 // ══════════════════════════════════════════════════════════
 $fileName = '員工出勤紀錄.xlsx';
-if (file_exists($fileName)) { $spreadsheet = IOFactory::load($fileName); }
-else { $spreadsheet = new Spreadsheet(); $spreadsheet->removeSheetByIndex(0); }
+$spreadsheet = new Spreadsheet(); $spreadsheet->removeSheetByIndex(0);
 
 if ($spreadsheet->sheetNameExists($name)) {
     $sheet = $spreadsheet->getSheetByName($name);
