@@ -1,0 +1,9 @@
+# Google API 憑證
+credentials.json
+
+# PHP 套件庫
+/vendor/
+
+# 個人設定與 Session
+.env
+composer.lock
