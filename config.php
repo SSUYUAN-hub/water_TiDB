@@ -7,7 +7,7 @@ if (file_exists(__DIR__ . '/.env')) {
     $dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
     $dotenv->load();
 }
-$apiKey = $_ENV['GOOGLE_API_KEY'] ?? '';
+$apiKey = $_ENV['GOOGLE_API_KEY'] ?? $_SERVER['GOOGLE_API_KEY'] ?? '';
 
 $employeeName  = $_POST['employee_name'] ?? '未命名';
 $startTime     = '';
