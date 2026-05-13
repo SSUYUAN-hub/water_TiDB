@@ -1,5 +1,5 @@
 # 1. 使用官方 PHP + Apache 映像檔
-FROM php:8.2-apache
+FROM php:8.3-apache
 
 # 2. 安裝系統套件與 PHP 擴充功能
 # 這裡補上了 libpng-dev (GD 常用) 與其他可能需要的套件
