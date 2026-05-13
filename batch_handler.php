@@ -61,6 +61,8 @@ foreach ($days as $day) {
     if (!empty($day['skip'])) continue;
     $date=$day['date']??''; $s1s=trim($day['s1_start']??''); $s1e=trim($day['s1_end']??'');
     $s2s=trim($day['s2_start']??''); $s2e=trim($day['s2_end']??''); $hasBreak=($day['has_break']??'1')==='1';
+    $ymParts=explode('-',$yearMonth);
+    if(!checkdate((int)$ymParts[1],(int)$date,(int)$ymParts[0])) continue;
     $h1=($s1s&&$s1e)?timeDiff2($s1s,$s1e):0; $h2=($s2s&&$s2e)?timeDiff2($s2s,$s2e):0;
     $total=$h1+$h2; if($total<=0) continue;
     $sal=calcHours($total,(float)$hourlyRate,$empType,$hasBreak);
