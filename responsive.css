@@ -52,20 +52,50 @@ body {
 /* ── 頂部導覽列 ── */
 .topbar {
   background: var(--green-800);
-  padding: 14px 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  padding: 0 16px;
   position: sticky;
   top: 0;
   z-index: 100;
   box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+.topbar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 52px;
 }
 .topbar-title {
   color: var(--white);
   font-size: 1em;
   font-weight: 700;
   letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+/* 漢堡按鈕（手機才顯示） */
+.topbar-burger {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  margin-right: -8px;
+}
+.topbar-burger span {
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: rgba(255,255,255,0.85);
+  border-radius: 2px;
+  transition: var(--transition);
+}
+/* 導覽連結群組 */
+.topbar-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
 }
 .topbar-link {
   color: rgba(255,255,255,0.75);
@@ -75,8 +105,29 @@ body {
   border-radius: var(--radius-sm);
   border: 1px solid rgba(255,255,255,0.2);
   transition: var(--transition);
+  white-space: nowrap;
 }
 .topbar-link:hover { background: rgba(255,255,255,0.1); color: white; }
+
+/* 手機版：漢堡收折 */
+@media (max-width: 540px) {
+  .topbar-burger { display: flex; }
+  .topbar-nav {
+    display: none;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    padding: 10px 0 14px;
+    border-top: 1px solid rgba(255,255,255,0.15);
+  }
+  .topbar-nav.open { display: flex; }
+  .topbar-link {
+    text-align: center;
+    padding: 10px 14px;
+    font-size: 0.88em;
+  }
+  .topbar { padding: 0 16px; }
+}
 
 /* ── 主要內容區 ── */
 .main-wrap {
@@ -447,3 +498,5 @@ input, select, textarea { font-size: 16px !important; }
 
 /* 底部安全區域 */
 .footer-pad { padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
+
+/* ── 漢堡選單 JS（inline script，透過 CSS 檔引入避免各頁重複） ── */

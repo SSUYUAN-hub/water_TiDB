@@ -482,10 +482,16 @@ if ($isAdmin && isset($_GET['edit_id'])) {
 <link rel="stylesheet" href="responsive.css">
 <style>
 .main-wrap { max-width: 900px; }
-.filter-bar { display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;background:white;border-radius:var(--radius-md);padding:16px;box-shadow:var(--card-shadow);margin-bottom:14px; }
+.filter-bar { display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;align-items:flex-end;background:white;border-radius:var(--radius-md);padding:16px;box-shadow:var(--card-shadow);margin-bottom:14px; }
 .filter-group { display:flex;flex-direction:column;gap:4px; }
 .filter-group label { font-size:0.75em;color:var(--grey-500);font-weight:600; }
-.filter-group select,.filter-group input[type="month"] { padding:9px 12px;border:1.5px solid var(--grey-300);border-radius:var(--radius-sm);font-size:0.9em;font-family:var(--font-body);color:var(--grey-900);background:white; }
+.filter-group select,.filter-group input[type="month"] { padding:9px 12px;border:1.5px solid var(--grey-300);border-radius:var(--radius-sm);font-size:0.9em;font-family:var(--font-body);color:var(--grey-900);background:white;width:100%; }
+.filter-btn-row { display:flex;gap:8px;flex-wrap:wrap;margin-top:4px; }
+.filter-btn-row .btn { flex:1;min-width:80px; }
+@media(max-width:540px){
+  .filter-bar { grid-template-columns:1fr 1fr; }
+  .filter-btn-row { grid-column: 1 / -1; }
+}
 .summary-grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:14px; }
 .summary-cell { background:white;border-radius:var(--radius-md);padding:14px 16px;box-shadow:var(--card-shadow);text-align:center; }
 .summary-cell .s-label { font-size:0.75em;color:var(--grey-500);margin-bottom:4px; }
@@ -515,14 +521,19 @@ if ($isAdmin && isset($_GET['edit_id'])) {
 </head>
 <body>
 <div class="topbar">
-  <span class="topbar-title">📊 出勤查詢</span>
-  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-    <span class="user-chip"><?php echo $isAdmin?'👑':'👤'; ?> <?php echo htmlspecialchars($user['username']); ?></span>
-    <?php if($isAdmin): ?>
-    <a href="admin.php" class="topbar-link">⚙️ 管理後台</a>
-    <a href="index.php" class="topbar-link">🏠 打卡</a>
-    <?php endif; ?>
-    <a href="logout.php" class="topbar-link">登出</a>
+  <div class="topbar-inner">
+    <span class="topbar-title">📊 出勤查詢</span>
+    <button class="topbar-burger" onclick="toggleNav(this)" aria-label="選單">
+      <span></span><span></span><span></span>
+    </button>
+    <nav class="topbar-nav" id="topbar-nav">
+      <span class="topbar-link" style="background:rgba(255,255,255,0.1);cursor:default"><?php echo $isAdmin?'👑':'👤'; ?> <?php echo htmlspecialchars($user['username']); ?></span>
+      <?php if($isAdmin): ?>
+      <a href="admin.php" class="topbar-link">⚙️ 管理後台</a>
+      <a href="index.php" class="topbar-link">🏠 打卡</a>
+      <?php endif; ?>
+      <a href="logout.php" class="topbar-link">登出</a>
+    </nav>
   </div>
 </div>
 
@@ -602,29 +613,22 @@ if ($isAdmin && isset($_GET['edit_id'])) {
     </select>
   </div>
 
-  <div class="filter-group" style="justify-content:flex-end">
-    <label>&nbsp;</label>
-    <button type="submit" class="btn btn-primary" style="min-height:40px"
-            onclick="document.getElementById('searched-input').value='1'">🔍 查詢</button>
-  </div>
   <input type="hidden" name="searched" id="searched-input" value="<?php echo $searched?'1':''; ?>">
 
-  <?php if(!empty($attendances)): ?>
-  <div class="filter-group" style="justify-content:flex-end;margin-left:auto">
-    <label>&nbsp;</label>
-    <button type="submit" form="export-form" class="btn btn-blue" style="min-height:40px">⬇ 個人 Excel</button>
-  </div>
-  <?php endif; ?>
-
-  <?php if($isAdmin): ?>
-  <div class="filter-group" style="justify-content:flex-end">
-    <label>&nbsp;</label>
+  <!-- 按鈕列：查詢 + Excel + 月報/年報 並排 -->
+  <div class="filter-btn-row" style="grid-column:1/-1">
+    <button type="submit" class="btn btn-primary"
+            onclick="document.getElementById('searched-input').value='1'">🔍 查詢</button>
+    <?php if(!empty($attendances)): ?>
+    <button type="submit" form="export-form" class="btn btn-blue">⬇ Excel</button>
+    <?php endif; ?>
+    <?php if($isAdmin): ?>
     <button type="submit" form="export-year-form" class="btn btn-purple" id="btn-year-report"
-            style="min-height:40px;<?php echo $queryMode!=='year'?'display:none':''; ?>">📊 全員年報</button>
+            <?php echo $queryMode!=='year'?'style="display:none"':''; ?>>📊 年報</button>
     <button type="submit" form="export-month-all-form" class="btn btn-purple" id="btn-month-report"
-            style="min-height:40px;<?php echo $queryMode==='year'?'display:none':''; ?>">📊 全員月報</button>
+            <?php echo $queryMode==='year'?'style="display:none"':''; ?>>📊 月報</button>
+    <?php endif; ?>
   </div>
-  <?php endif; ?>
 </form>
 
 <!-- 隱藏匯出 forms -->
@@ -804,6 +808,20 @@ if ($isAdmin && isset($_GET['edit_id'])) {
 </div>
 
 <script>
+function toggleNav(btn) {
+    const nav = document.getElementById('topbar-nav');
+    nav.classList.toggle('open');
+    btn.setAttribute('aria-expanded', nav.classList.contains('open'));
+}
+// 點選連結後自動收折
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.topbar-nav .topbar-link[href]').forEach(function(a) {
+        a.addEventListener('click', function() {
+            document.getElementById('topbar-nav').classList.remove('open');
+        });
+    });
+});
+
 function toggleSelectAll(cb) {
     document.querySelectorAll('.row-check').forEach(c => c.checked = cb.checked);
     updateBulkBar();

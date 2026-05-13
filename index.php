@@ -133,10 +133,15 @@ $carryData  = $_POST['carry_side1']       ?? '';
 <body>
 
   <div class="topbar">
-    <span class="topbar-title"><span class="logo-icon">🕐</span> 打卡辨識系統</span>
-    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-      <a href="attendance.php" class="topbar-link">📊 出勤查詢</a>
-      <a href="admin.php" class="topbar-link">⚙️ 後台管理</a>
+    <div class="topbar-inner">
+      <span class="topbar-title"><span class="logo-icon">🕐</span> 打卡辨識系統</span>
+      <button class="topbar-burger" onclick="toggleNav(this)" aria-label="選單">
+        <span></span><span></span><span></span>
+      </button>
+      <nav class="topbar-nav" id="topbar-nav">
+        <a href="attendance.php" class="topbar-link">📊 出勤查詢</a>
+        <a href="admin.php" class="topbar-link">⚙️ 後台管理</a>
+      </nav>
     </div>
   </div>
 
@@ -279,6 +284,11 @@ $carryData  = $_POST['carry_side1']       ?? '';
   </div>
 
   <script>
+    function toggleNav(btn) {
+        const nav = document.getElementById('topbar-nav');
+        nav.classList.toggle('open');
+        btn.setAttribute('aria-expanded', nav.classList.contains('open'));
+    }
     const employees = <?php echo json_encode($employees, JSON_UNESCAPED_UNICODE); ?>;
 
     function switchMode(mode) {
