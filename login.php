@@ -40,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // 導向原本要去的頁面，或預設首頁
                 $redirect = $_GET['redirect'] ?? '';
                 $safe     = filter_var($redirect, FILTER_VALIDATE_URL) === false && strpos($redirect, '//') === false;
-                header('Location: ' . ($safe && $redirect ? $redirect : ($user['role']==='admin' ? 'admin.php' : 'attendance.php')));
+                header('Location: ' . ($safe && $redirect ? $redirect : 'index.php'));
                 exit;
             } else {
                 $errorMsg = '帳號或密碼錯誤';
