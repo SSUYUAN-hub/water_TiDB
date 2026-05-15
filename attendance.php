@@ -6,11 +6,6 @@ include_once __DIR__ . '/auth.php';
 
 requireLogin();
 
-// 時間格式化：截掉秒數，只保留 HH:MM
-function fmtTime(string $t): string {
-    return $t ? substr($t, 0, 5) : '';
-}
-
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
