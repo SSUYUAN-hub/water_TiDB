@@ -64,8 +64,8 @@ function outputExcel(array $rows, array $emp, string $yearMonth): void {
 
         $bl = $r['has_break'] ? '有' : '無';
         if ($empType === 'fulltime') {
-            foreach (['A'=>$r['work_date'],'B'=>$r['s1_start'],'C'=>$r['s1_end'],
-                      'D'=>$r['s2_start'],'E'=>$r['s2_end'],'F'=>$bl,
+            foreach (['A'=>$r['work_date'],'B'=>fmtTime($r['s1_start']),'C'=>fmtTime($r['s1_end']),
+                      'D'=>fmtTime($r['s2_start']),'E'=>fmtTime($r['s2_end']),'F'=>$bl,
                       'G'=>$r['total_hours'],'H'=>$r['overtime_hours'],'I'=>$r['overtime_pay']] as $c=>$v) {
                 $sheet->setCellValue($c.$rowNum, $v);
             }
@@ -77,8 +77,8 @@ function outputExcel(array $rows, array $emp, string $yearMonth): void {
                 $sheet->setCellValue('I'.$rowNum, $r['salary']);
             }
         } else {
-            foreach (['A'=>$r['work_date'],'B'=>$r['s1_start'],'C'=>$r['s1_end'],
-                      'D'=>$r['s2_start'],'E'=>$r['s2_end'],'F'=>$r['total_hours']] as $c=>$v) {
+            foreach (['A'=>$r['work_date'],'B'=>fmtTime($r['s1_start']),'C'=>fmtTime($r['s1_end']),
+                      'D'=>fmtTime($r['s2_start']),'E'=>fmtTime($r['s2_end']),'F'=>$r['total_hours']] as $c=>$v) {
                 $sheet->setCellValue($c.$rowNum, $v);
             }
             if ($hasNight) {
@@ -328,6 +328,32 @@ function outputExcelMonthAll(string $yearMonth, array $empGrouped, array $allEmp
 // ══════════════════════════════════════════════════════════
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
+
+    // 修改自己的密碼（所有登入使用者）
+    if ($action === 'change_password') {
+        $oldPass  = $_POST['old_password']  ?? '';
+        $newPass  = $_POST['new_password']  ?? '';
+        $newPass2 = $_POST['new_password2'] ?? '';
+
+        if (empty($oldPass) || empty($newPass) || empty($newPass2)) {
+            $message = '請填寫所有欄位'; $msgType = 'error';
+        } elseif ($newPass !== $newPass2) {
+            $message = '新密碼兩次輸入不一致'; $msgType = 'error';
+        } elseif (strlen($newPass) < 6) {
+            $message = '新密碼至少需要 6 個字元'; $msgType = 'error';
+        } else {
+            $stmt = getDB()->prepare('SELECT password_hash FROM users WHERE id = ?');
+            $stmt->execute([$user['id']]);
+            $row = $stmt->fetch();
+            if (!$row || $oldPass !== $row['password_hash']) {
+                $message = '目前密碼輸入錯誤'; $msgType = 'error';
+            } else {
+                $upd = getDB()->prepare('UPDATE users SET password_hash = ? WHERE id = ?');
+                $upd->execute([$newPass, $user['id']]);
+                $message = '✅ 密碼已成功修改'; $msgType = 'success';
+            }
+        }
+    }
 
     // 匯出（管理員 + 員工都可以）
     if ($action === 'export_db') {
@@ -698,10 +724,10 @@ if ($isAdmin && isset($_GET['edit_id'])) {
     <input type="hidden" name="action" value="edit">
     <input type="hidden" name="id"     value="<?php echo $editRow['id']; ?>">
     <div class="edit-grid">
-      <div class="edit-field"><label>🔵 第一段上班</label><input type="text" name="s1_start" value="<?php echo htmlspecialchars($editRow['s1_start']??''); ?>" placeholder="08:00" inputmode="numeric" maxlength="5"></div>
-      <div class="edit-field"><label>🟢 第一段下班</label><input type="text" name="s1_end"   value="<?php echo htmlspecialchars($editRow['s1_end']??'');   ?>" placeholder="17:00" inputmode="numeric" maxlength="5"></div>
-      <div class="edit-field"><label>🟣 第二段上班</label><input type="text" name="s2_start" value="<?php echo htmlspecialchars($editRow['s2_start']??''); ?>" placeholder="（可空白）" inputmode="numeric" maxlength="5"></div>
-      <div class="edit-field"><label>⚫ 第二段下班</label><input type="text" name="s2_end"   value="<?php echo htmlspecialchars($editRow['s2_end']??'');   ?>" placeholder="（可空白）" inputmode="numeric" maxlength="5"></div>
+      <div class="edit-field"><label>🔵 第一段上班</label><input type="text" name="s1_start" value="<?php echo htmlspecialchars(fmtTime($editRow['s1_start']??'')); ?>" placeholder="08:00" inputmode="numeric" maxlength="5"></div>
+      <div class="edit-field"><label>🟢 第一段下班</label><input type="text" name="s1_end"   value="<?php echo htmlspecialchars(fmtTime($editRow['s1_end']??''));   ?>" placeholder="17:00" inputmode="numeric" maxlength="5"></div>
+      <div class="edit-field"><label>🟣 第二段上班</label><input type="text" name="s2_start" value="<?php echo htmlspecialchars(fmtTime($editRow['s2_start']??'')); ?>" placeholder="（可空白）" inputmode="numeric" maxlength="5"></div>
+      <div class="edit-field"><label>⚫ 第二段下班</label><input type="text" name="s2_end"   value="<?php echo htmlspecialchars(fmtTime($editRow['s2_end']??''));   ?>" placeholder="（可空白）" inputmode="numeric" maxlength="5"></div>
       <?php if($selEmpType==='fulltime'): ?>
       <div class="edit-field"><label>☕ 有無休息</label>
         <select name="has_break">
@@ -759,8 +785,8 @@ if ($isAdmin && isset($_GET['edit_id'])) {
         $wdRoc = ((int)$wdParts[0]-1911).'-'.$wdParts[1].'-'.$wdParts[2];
       ?>
       <td><?php echo $wdRoc; ?></td>
-      <td><?php echo($att['s1_start']&&$att['s1_end'])?htmlspecialchars($att['s1_start']).'→'.htmlspecialchars($att['s1_end']):'—'; ?></td>
-      <td><?php echo($att['s2_start']&&$att['s2_end'])?htmlspecialchars($att['s2_start']).'→'.htmlspecialchars($att['s2_end']):'—'; ?></td>
+      <td><?php echo($att['s1_start']&&$att['s1_end'])?htmlspecialchars(fmtTime($att['s1_start'])).'→'.htmlspecialchars(fmtTime($att['s1_end'])):'—'; ?></td>
+      <td><?php echo($att['s2_start']&&$att['s2_end'])?htmlspecialchars(fmtTime($att['s2_start'])).'→'.htmlspecialchars(fmtTime($att['s2_end'])):'—'; ?></td>
       <?php if($selEmpType==='fulltime'): ?><td><?php echo $att['has_break']?'✅ 有':'⚡ 無'; ?></td><?php endif; ?>
       <td><?php echo $att['total_hours']; ?></td>
       <?php if($selEmpType==='fulltime'): ?>
@@ -774,8 +800,7 @@ if ($isAdmin && isset($_GET['edit_id'])) {
       <?php if($isAdmin): ?>
       <td>
         <div class="action-cell">
-          <a href="attendance.php?emp=<?php echo urlencode($selEmp); ?>&ym=<?php echo $selYM; ?>&mode=<?php echo $queryMode; ?>&searched=1&edit_id=<?php echo $att['id']; ?>#edit"
-   class="btn btn-ghost btn-sm">✏️</a>#edit"
+          <a href="attendance.php?emp=<?php echo urlencode($selEmp); ?>&ym=<?php echo $selYM; ?>&edit_id=<?php echo $att['id']; ?>#edit"
              class="btn btn-ghost btn-sm">✏️</a>
           <form method="post" style="margin:0" onsubmit="return confirm('確定刪除 <?php echo $att['work_date']; ?> 的出勤紀錄？')">
             <input type="hidden" name="action" value="delete">
@@ -806,6 +831,28 @@ if ($isAdmin && isset($_GET['edit_id'])) {
 
 </div><!-- /results-area -->
 <?php endif; ?>
+
+<!-- ── 修改密碼 ──────────────────────────────────── -->
+<div class="card" style="margin-top:14px">
+  <div class="card-title">🔑 修改登入密碼</div>
+  <form method="post" onsubmit="return validatePwForm(this)">
+    <input type="hidden" name="action" value="change_password">
+    <div class="fg" style="margin-bottom:12px">
+      <label style="font-size:0.78em;color:var(--grey-500);font-weight:600;display:block;margin-bottom:5px">目前密碼</label>
+      <input type="password" name="old_password" class="form-input" placeholder="輸入目前密碼" required>
+    </div>
+    <div class="fg" style="margin-bottom:12px">
+      <label style="font-size:0.78em;color:var(--grey-500);font-weight:600;display:block;margin-bottom:5px">新密碼（至少 6 碼）</label>
+      <input type="password" name="new_password" id="pw-new" class="form-input" placeholder="輸入新密碼" minlength="6" required>
+    </div>
+    <div class="fg" style="margin-bottom:16px">
+      <label style="font-size:0.78em;color:var(--grey-500);font-weight:600;display:block;margin-bottom:5px">確認新密碼</label>
+      <input type="password" name="new_password2" id="pw-new2" class="form-input" placeholder="再次輸入新密碼" minlength="6" required>
+    </div>
+    <button type="submit" class="btn btn-primary">🔐 確認修改密碼</button>
+  </form>
+</div>
+
 </div>
 
 <script>
@@ -886,6 +933,21 @@ function switchQueryMode(mode) {
     // 同時隱藏已顯示的結果區塊（若存在）
     const resultsArea = document.getElementById('results-area');
     if (resultsArea) resultsArea.style.display = 'none';
+}
+
+// 修改密碼前端驗證
+function validatePwForm(form) {
+    const n1 = document.getElementById('pw-new').value;
+    const n2 = document.getElementById('pw-new2').value;
+    if (n1 !== n2) {
+        alert('新密碼兩次輸入不一致');
+        return false;
+    }
+    if (n1.length < 6) {
+        alert('新密碼至少需要 6 個字元');
+        return false;
+    }
+    return true;
 }
 
 // 任何篩選條件改變時，清除 searched
