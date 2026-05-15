@@ -75,7 +75,7 @@ foreach ($days as $day) {
     $records[]=['date'=>$yearMonth.'-'.str_pad($date,2,'0',STR_PAD_LEFT),'s1_start'=>$s1s,'s1_end'=>$s1e,'s2_start'=>$s2s,'s2_end'=>$s2e,'has_break'=>$hasBreak,'total_hours'=>$sal['total_hours'],'overtime_hours'=>$sal['overtime_hours'],'overtime_pay'=>$sal['overtime_pay'],'night_pay'=>$nightPay,'salary'=>$daySalary];
     $totalSalary+=$daySalary; $totalHoursAll+=$sal['total_hours']; $totalOTHours+=$sal['overtime_hours']; $totalOTPay+=$sal['overtime_pay']; $totalNightPay+=$nightPay;
 }
-if(empty($records)) die('<p style="padding:20px">沒有有效記錄。<a href="index.php">返回首頁</a></p>');
+if(empty($records)) die('<p style="padding:20px">沒有有效記錄。<a href="scan_upload.php">返回打卡辨識</a></p>');
 
 // ══════════════════════════════════════════════════════════
 //  ★ 新增：寫入 MySQL（每筆記錄呼叫一次 saveAttendance）
@@ -230,7 +230,7 @@ foreach(range('A',$endCol) as $col) $sheet->getColumnDimension($col)->setAutoSiz
   </div>
 
   <div class="btn-row">
-    <a href="index.php" class="btn btn-primary">繼續下一位</a>
+    <a href="scan_upload.php" class="btn btn-primary">繼續下一位</a>
     <a href="<?php echo $fileName; ?>" class="btn btn-blue" download>⬇ 下載 Excel</a>
   </div>
 </div>

@@ -168,7 +168,7 @@ foreach (range('A',$endCol) as $col) $sheet->getColumnDimension($col)->setAutoSi
     <?php endif; ?>
 
     <div class="btn-row" style="margin-top:18px">
-      <a href="index.php" class="btn btn-primary">繼續下一筆</a>
+      <a href="scan_upload.php" class="btn btn-primary">繼續下一筆</a>
       <a href="<?php echo $fileName; ?>" class="btn btn-blue" download>⬇ 下載 Excel</a>
     </div>
   </div>

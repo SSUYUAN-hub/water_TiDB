@@ -1384,7 +1384,7 @@ function submitForNextSide() {
     const empName = document.querySelector('input[name="employee_name"]').value;
     const ym      = document.querySelector('input[name="year_month"]').value;
     const f = document.createElement('form');
-    f.method = 'post'; f.action = 'index.php'; f.style.display = 'none';
+    f.method = 'post'; f.action = 'scan_upload.php'; f.style.display = 'none';
     [['next_side_scan','1'],['prefill_employee',empName],['prefill_yearmonth',ym],['carry_side1',JSON.stringify(merged)]].forEach(([k,v]) => {
         const inp = document.createElement('input');
         inp.type='hidden'; inp.name=k; inp.value=v; f.appendChild(inp);

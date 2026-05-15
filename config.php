@@ -141,7 +141,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['card_image'])) {
 <body>
 <div class="topbar">
   <span class="topbar-title">🔍 確認辨識結果</span>
-  <a href="index.php" class="topbar-link">← 返回</a>
+  <a href="scan_upload.php" class="topbar-link">← 返回</a>
 </div>
 <div class="main-wrap footer-pad">
 <div class="card">
@@ -298,7 +298,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['card_image'])) {
         <?php endif; ?>
 
         <div class="btn-row" style="margin-top:16px">
-            <a href="index.php" class="btn btn-secondary">← 重新拍攝</a>
+            <a href="scan_upload.php" class="btn btn-secondary">← 重新拍攝</a>
             <button type="submit" class="btn btn-primary">確認並儲存 ✓</button>
         </div>
     </form>
