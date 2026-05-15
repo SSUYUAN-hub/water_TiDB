@@ -525,7 +525,7 @@ if ($isAdmin && isset($_GET['edit_id'])) {
 </style>
 </head>
 <body>
-<div class="topbar">
+<!-- <div class="topbar"> -->
   <span class="topbar-title">📊 出勤查詢</span>
   <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
     <span class="user-chip"><?php echo $isAdmin?'👑':'👤'; ?> <?php echo htmlspecialchars($user['username']); ?></span>
@@ -535,7 +535,7 @@ if ($isAdmin && isset($_GET['edit_id'])) {
     <?php endif; ?>
     <a href="logout.php" class="topbar-link">登出</a>
   </div>
-</div>
+<!-- </div> -->
 
 <div class="main-wrap footer-pad" style="margin-top:14px">
 
