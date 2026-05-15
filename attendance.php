@@ -774,7 +774,8 @@ if ($isAdmin && isset($_GET['edit_id'])) {
       <?php if($isAdmin): ?>
       <td>
         <div class="action-cell">
-          <a href="attendance.php?emp=<?php echo urlencode($selEmp); ?>&ym=<?php echo $selYM; ?>&edit_id=<?php echo $att['id']; ?>#edit"
+          <a href="attendance.php?emp=<?php echo urlencode($selEmp); ?>&ym=<?php echo $selYM; ?>&mode=<?php echo $queryMode; ?>&searched=1&edit_id=<?php echo $att['id']; ?>#edit"
+   class="btn btn-ghost btn-sm">✏️</a>#edit"
              class="btn btn-ghost btn-sm">✏️</a>
           <form method="post" style="margin:0" onsubmit="return confirm('確定刪除 <?php echo $att['work_date']; ?> 的出勤紀錄？')">
             <input type="hidden" name="action" value="delete">
