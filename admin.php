@@ -359,8 +359,8 @@ $allUsers  = getDB()->query(
       <span class="topbar-link" style="background:rgba(255,255,255,0.1);cursor:default">
         👑 <?php echo htmlspecialchars(currentUser()['username'] ?? ''); ?>
       </span>
-      <a href="attendance.php" class="topbar-link">📊 出勤查詢</a>
-      <a href="index.php"      class="topbar-link">🏠 打卡</a>
+      <!-- <a href="attendance.php" class="topbar-link">📊 出勤查詢</a> -->
+      <a href="index.php"      class="topbar-link">🏠 首頁</a>
       <a href="logout.php"     class="topbar-link">登出</a>
     </nav>
   </div>

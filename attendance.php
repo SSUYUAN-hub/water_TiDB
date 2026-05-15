@@ -770,8 +770,8 @@ if ($isAdmin && isset($_GET['edit_id'])) {
             <?php echo $isAdmin?'👑':'👤'; ?> <?php echo htmlspecialchars($user['username']); ?>
           </span>
           <?php if($isAdmin): ?>
-          <a href="admin.php" class="topbar-link">⚙️ 管理後台</a>
-          <a href="index.php" class="topbar-link">🏠 打卡</a>
+          <a href="admin.php" class="topbar-link">⚙️ 員工管理</a>
+          <a href="index.php" class="topbar-link">🏠 回到首頁</a>
           <?php endif; ?>
           <a href="logout.php" class="topbar-link">登出</a>
         </nav>
@@ -1041,7 +1041,7 @@ if ($isAdmin && isset($_GET['edit_id'])) {
             </div><!-- /results-area -->
         <?php endif; ?>
 
-        <!-- ── 修改登入密碼 ── -->
+        <!-- ── 修改登入密碼 ──
         <div class="card" style="margin-top:14px">
             <div class="card-title">🔑 修改登入密碼</div>
             <form method="post" onsubmit="return validatePwForm()">
@@ -1062,7 +1062,7 @@ if ($isAdmin && isset($_GET['edit_id'])) {
             </form>
         </div>
 
-    </div>
+    </div> -->
 
     <script>
     function toggleNav(btn) {
