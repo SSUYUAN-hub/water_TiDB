@@ -76,6 +76,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+    } elseif ($action === 'rename_user') {
+        $uid          = (int)($_POST['u_id']           ?? 0);
+        $newUsername  = trim($_POST['u_new_username']  ?? '');
+        $curUser      = currentUser();
+        if (empty($newUsername)) {
+            $message = '帳號名稱不能空白'; $msgType = 'error';
+        } else {
+            try {
+                $stmt = getDB()->prepare('UPDATE users SET username = ? WHERE id = ?');
+                $stmt->execute([$newUsername, $uid]);
+                // 若修改的是自己，同步更新 session
+                if ($uid === (int)($curUser['id'] ?? 0)) {
+                    $_SESSION['user']['username'] = $newUsername;
+                }
+                $message = "✅ 帳號名稱已更新為「{$newUsername}」"; $msgType = 'success';
+            } catch (PDOException $e) {
+                $message = ($e->getCode() === '23000') ? "帳號「{$newUsername}」已存在" : '更新失敗：'.$e->getMessage();
+                $msgType = 'error';
+            }
+        }
+
     } elseif ($action === 'reset_password') {
         $uid   = (int)($_POST['u_id']       ?? 0);
         $upass = $_POST['u_new_password']    ?? '';
@@ -563,82 +584,98 @@ function toggleWageLabel(id) {
 }
 </script>
 <!-- ── 帳號管理 ─────────────────────────────────── -->
-<div class="card">
+<div class="card" id="account">
     <div class="card-title">🔑 帳號密碼管理</div>
 
     <!-- 搜尋框 -->
-    <div class="search-wrap" style="margin-bottom:14px">
+    <div class="search-wrap" style="margin-bottom:16px">
         <span class="search-icon">🔍</span>
         <input type="text" id="user-search" class="search-input"
                placeholder="輸入帳號或員工姓名搜尋..."
                oninput="filterUsers(this.value)">
     </div>
 
-    <!-- 帳號列表 -->
     <?php if (empty($allUsers)): ?>
     <div class="empty-state">尚未建立任何帳號</div>
     <?php else: ?>
-    <div id="no-user-msg" style="display:none;text-align:center;padding:16px;color:var(--grey-500);font-size:0.9em">找不到符合的帳號</div>
-    <div style="overflow-x:auto">
-    <table class="user-table">
-        <thead>
-            <tr>
-                <th>帳號</th>
-                <th>角色</th>
-                <th>對應員工</th>
-                <th>建立時間</th>
-                <th>修改密碼</th>
-            </tr>
-        </thead>
-        <tbody id="user-table-body">
-        <?php
-        $curUser = currentUser();
-        foreach ($allUsers as $u):
-            $isSelf = (int)$u['id'] === (int)($curUser['id'] ?? 0);
-        ?>
-        <tr class="user-row"
-            data-username="<?php echo strtolower(htmlspecialchars($u['username'])); ?>"
-            data-empname="<?php echo strtolower(htmlspecialchars($u['employee_name'] ?? '')); ?>">
-            <td>
-                <strong><?php echo htmlspecialchars($u['username']); ?></strong>
-                <?php if ($isSelf): ?>
-                <span style="font-size:0.75em;color:var(--grey-500)">（自己）</span>
-                <?php endif; ?>
-            </td>
-            <td>
-                <span class="badge badge-<?php echo $u['role']==='admin'?'fulltime':'hourly'; ?>">
-                    <?php echo $u['role']==='admin'?'👑 管理員':'👤 員工'; ?>
-                </span>
-            </td>
-            <td style="color:var(--grey-<?php echo $u['employee_name']?'900':'300'; ?>)">
+
+    <div id="no-user-msg" style="display:none;text-align:center;padding:20px;color:var(--grey-500)">找不到符合的帳號</div>
+
+    <div class="emp-grid" id="user-card-grid">
+    <?php
+    $curUser = currentUser();
+    foreach ($allUsers as $u):
+        $isSelf = (int)$u['id'] === (int)($curUser['id'] ?? 0);
+        $loop   = 'u' . $u['id'];
+    ?>
+    <div class="emp-card user-card"
+         data-username="<?php echo strtolower(htmlspecialchars($u['username'])); ?>"
+         data-empname="<?php echo strtolower(htmlspecialchars($u['employee_name'] ?? '')); ?>">
+
+        <!-- 卡片標題 -->
+        <div class="emp-card-header">
+            <div>
+                <div class="emp-card-name">
+                    <?php echo htmlspecialchars($u['username']); ?>
+                    <?php if ($isSelf): ?>
+                    <span style="font-size:0.72em;background:var(--green-100);color:var(--green-700);padding:2px 7px;border-radius:8px;margin-left:4px">自己</span>
+                    <?php endif; ?>
+                </div>
+                <div style="margin-top:4px">
+                    <span class="badge badge-<?php echo $u['role']==='admin'?'fulltime':'hourly'; ?>">
+                        <?php echo $u['role']==='admin'?'👑 管理員':'👤 員工'; ?>
+                    </span>
+                </div>
+            </div>
+            <div style="text-align:right;font-size:0.78em;color:var(--grey-500)">
                 <?php echo $u['employee_name'] ? htmlspecialchars($u['employee_name']) : '—'; ?>
-            </td>
-            <td style="color:var(--grey-500);font-size:0.85em"><?php echo $u['created_at']; ?></td>
-            <td>
-                <form method="post" class="reset-form">
-                    <input type="hidden" name="action"     value="reset_password">
-                    <input type="hidden" name="u_id"       value="<?php echo $u['id']; ?>">
-                    <input type="hidden" name="u_username" value="<?php echo htmlspecialchars($u['username']); ?>">
-                    <input type="password" name="u_new_password" placeholder="新密碼" minlength="6">
-                    <button type="submit" class="btn btn-ghost btn-sm">🔄 修改</button>
-                </form>
-            </td>
-        </tr>
-        <?php endforeach; ?>
-        </tbody>
-    </table>
+            </div>
+        </div>
+
+        <hr class="emp-card-divider">
+
+        <!-- 修改帳號名稱 -->
+        <form method="post" style="margin-bottom:10px">
+            <input type="hidden" name="action"     value="rename_user">
+            <input type="hidden" name="u_id"       value="<?php echo $u['id']; ?>">
+            <div class="edit-row" style="margin-bottom:6px">
+                <label style="font-size:0.75em;color:var(--grey-500);min-width:52px">帳號名稱</label>
+                <input type="text" name="u_new_username"
+                       value="<?php echo htmlspecialchars($u['username']); ?>"
+                       required
+                       style="flex:1;padding:7px 9px;border:1.5px solid var(--grey-300);border-radius:6px;font-size:0.88em;font-family:var(--font-body);color:var(--grey-900)">
+            </div>
+            <button type="submit" class="btn btn-ghost btn-sm btn-full">✏️ 修改帳號名稱</button>
+        </form>
+
+        <!-- 修改密碼 -->
+        <form method="post">
+            <input type="hidden" name="action"     value="reset_password">
+            <input type="hidden" name="u_id"       value="<?php echo $u['id']; ?>">
+            <input type="hidden" name="u_username" value="<?php echo htmlspecialchars($u['username']); ?>">
+            <div class="edit-row" style="margin-bottom:6px">
+                <label style="font-size:0.75em;color:var(--grey-500);min-width:52px">新密碼</label>
+                <input type="password" name="u_new_password"
+                       placeholder="至少 6 碼" minlength="6" required
+                       style="flex:1;padding:7px 9px;border:1.5px solid var(--grey-300);border-radius:6px;font-size:0.88em;font-family:var(--font-body)">
+            </div>
+            <button type="submit" class="btn btn-blue btn-sm btn-full">🔑 修改密碼</button>
+        </form>
     </div>
+    <?php endforeach; ?>
+    </div>
+
     <?php endif; ?>
 </div>
 
 <script>
 function filterUsers(kw) {
     const k = kw.trim().toLowerCase();
-    const rows = document.querySelectorAll('.user-row');
+    const cards = document.querySelectorAll('.user-card');
     let visible = 0;
-    rows.forEach(row => {
-        const match = row.dataset.username.includes(k) || row.dataset.empname.includes(k);
-        row.style.display = match ? '' : 'none';
+    cards.forEach(card => {
+        const match = card.dataset.username.includes(k) || card.dataset.empname.includes(k);
+        card.style.display = match ? '' : 'none';
         if (match) visible++;
     });
     const noMsg = document.getElementById('no-user-msg');
