@@ -19,7 +19,7 @@ $isAdmin = isAdmin();
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>打卡辨識系統</title>
+  <title>打卡辨識 — 薪資結算系統</title>
   <link rel="stylesheet" href="responsive.css">
   <style>
     .upload-zone {
@@ -76,12 +76,10 @@ $isAdmin = isAdmin();
         <span></span><span></span><span></span>
       </button>
       <nav class="topbar-nav" id="topbar-nav">
-        <span class="user-chip"><?php echo $isAdmin ? '👑' : '👤'; ?> <?php echo htmlspecialchars($user['username']); ?></span>
+        <span class="topbar-link" style="background:rgba(255,255,255,0.1);cursor:default">
+          <?php echo $isAdmin ? '👑' : '👤'; ?> <?php echo htmlspecialchars($user['username']); ?>
+        </span>
         <a href="index.php" class="topbar-link">🏠 首頁</a>
-        <!-- <a href="attendance.php" class="topbar-link">📊 出勤查詢</a>
-        <?php if ($isAdmin): ?>
-        <a href="admin.php" class="topbar-link">⚙️ 員工管理</a>
-        <?php endif; ?> -->
         <a href="logout.php" class="topbar-link">登出</a>
       </nav>
     </div>

@@ -359,9 +359,8 @@ $allUsers  = getDB()->query(
       <span class="topbar-link" style="background:rgba(255,255,255,0.1);cursor:default">
         👑 <?php echo htmlspecialchars(currentUser()['username'] ?? ''); ?>
       </span>
-      <!-- <a href="attendance.php" class="topbar-link">📊 出勤查詢</a> -->
-      <a href="index.php"      class="topbar-link">🏠 首頁</a>
-      <a href="logout.php"     class="topbar-link">登出</a>
+      <a href="index.php" class="topbar-link">🏠 首頁</a>
+      <a href="logout.php" class="topbar-link">登出</a>
     </nav>
   </div>
 </div>
@@ -565,49 +564,21 @@ function toggleWageLabel(id) {
 </script>
 <!-- ── 帳號管理 ─────────────────────────────────── -->
 <div class="card">
-    <div class="card-title">🔑 登入帳號管理</div>
+    <div class="card-title">🔑 帳號密碼管理</div>
 
-    <!-- 新增帳號表單 -->
-    <form method="post" style="margin-bottom:20px">
-        <input type="hidden" name="action" value="add_user">
-        <div class="form-row">
-            <div class="fg">
-                <label>帳號</label>
-                <input type="text" name="u_username" placeholder="登入帳號" required>
-            </div>
-            <div class="fg">
-                <label>密碼（至少6碼）</label>
-                <input type="password" name="u_password" placeholder="••••••" required>
-            </div>
-            <div class="fg">
-                <label>角色</label>
-                <select name="u_role" id="u-role-sel" onchange="toggleEmpSelect()">
-                    <option value="admin">👑 管理員</option>
-                    <option value="staff" selected>👤 員工</option>
-                </select>
-            </div>
-            <div class="fg" id="u-emp-field">
-                <label>對應員工</label>
-                <select name="u_employee_name">
-                    <option value="">— 請選擇 —</option>
-                    <?php foreach ($employees as $e): ?>
-                    <option value="<?php echo htmlspecialchars($e['name']); ?>">
-                        <?php echo htmlspecialchars($e['name']); ?>
-                    </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="fg">
-                <label>&nbsp;</label>
-                <button type="submit" class="btn btn-add">＋ 新增帳號</button>
-            </div>
-        </div>
-    </form>
+    <!-- 搜尋框 -->
+    <div class="search-wrap" style="margin-bottom:14px">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="user-search" class="search-input"
+               placeholder="輸入帳號或員工姓名搜尋..."
+               oninput="filterUsers(this.value)">
+    </div>
 
-    <!-- 現有帳號列表 -->
+    <!-- 帳號列表 -->
     <?php if (empty($allUsers)): ?>
     <div class="empty-state">尚未建立任何帳號</div>
     <?php else: ?>
+    <div id="no-user-msg" style="display:none;text-align:center;padding:16px;color:var(--grey-500);font-size:0.9em">找不到符合的帳號</div>
     <div style="overflow-x:auto">
     <table class="user-table">
         <thead>
@@ -616,17 +587,18 @@ function toggleWageLabel(id) {
                 <th>角色</th>
                 <th>對應員工</th>
                 <th>建立時間</th>
-                <th>重設密碼</th>
-                <th>操作</th>
+                <th>修改密碼</th>
             </tr>
         </thead>
-        <tbody>
+        <tbody id="user-table-body">
         <?php
         $curUser = currentUser();
         foreach ($allUsers as $u):
             $isSelf = (int)$u['id'] === (int)($curUser['id'] ?? 0);
         ?>
-        <tr>
+        <tr class="user-row"
+            data-username="<?php echo strtolower(htmlspecialchars($u['username'])); ?>"
+            data-empname="<?php echo strtolower(htmlspecialchars($u['employee_name'] ?? '')); ?>">
             <td>
                 <strong><?php echo htmlspecialchars($u['username']); ?></strong>
                 <?php if ($isSelf): ?>
@@ -648,21 +620,8 @@ function toggleWageLabel(id) {
                     <input type="hidden" name="u_id"       value="<?php echo $u['id']; ?>">
                     <input type="hidden" name="u_username" value="<?php echo htmlspecialchars($u['username']); ?>">
                     <input type="password" name="u_new_password" placeholder="新密碼" minlength="6">
-                    <button type="submit" class="btn btn-ghost btn-sm">🔄 重設</button>
+                    <button type="submit" class="btn btn-ghost btn-sm">🔄 修改</button>
                 </form>
-            </td>
-            <td>
-                <?php if ($isSelf): ?>
-                <span style="font-size:0.8em;color:var(--grey-400)">無法刪除</span>
-                <?php else: ?>
-                <form method="post" style="margin:0"
-                      onsubmit="return confirm('確定刪除帳號「<?php echo htmlspecialchars($u['username']); ?>」？')">
-                    <input type="hidden" name="action"     value="delete_user">
-                    <input type="hidden" name="u_id"       value="<?php echo $u['id']; ?>">
-                    <input type="hidden" name="u_username" value="<?php echo htmlspecialchars($u['username']); ?>">
-                    <button type="submit" class="btn btn-danger btn-sm">🗑️ 刪除</button>
-                </form>
-                <?php endif; ?>
             </td>
         </tr>
         <?php endforeach; ?>
@@ -673,11 +632,18 @@ function toggleWageLabel(id) {
 </div>
 
 <script>
-function toggleEmpSelect() {
-    const role = document.getElementById('u-role-sel').value;
-    document.getElementById('u-emp-field').style.display = role === 'staff' ? '' : 'none';
+function filterUsers(kw) {
+    const k = kw.trim().toLowerCase();
+    const rows = document.querySelectorAll('.user-row');
+    let visible = 0;
+    rows.forEach(row => {
+        const match = row.dataset.username.includes(k) || row.dataset.empname.includes(k);
+        row.style.display = match ? '' : 'none';
+        if (match) visible++;
+    });
+    const noMsg = document.getElementById('no-user-msg');
+    if (noMsg) noMsg.style.display = visible === 0 ? '' : 'none';
 }
-toggleEmpSelect(); // 初始化
 </script>
 
 </div>
