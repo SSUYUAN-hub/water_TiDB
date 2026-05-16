@@ -49,81 +49,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = '找不到該員工'; $msgType = 'error';
         }
 
-    } elseif ($action === 'add_user') {
-        $uname    = trim($_POST['u_username']     ?? '');
-        $upass    = $_POST['u_password']           ?? '';
-        $urole    = $_POST['u_role']               ?? 'staff';
-        $uempname = trim($_POST['u_employee_name'] ?? '');
-
-        if (empty($uname) || strlen($upass) < 6) {
-            $message = '帳號不能空白，且密碼至少 6 個字元'; $msgType = 'error';
-        } else {
-            try {
-                $stmt = getDB()->prepare(
-                    'INSERT INTO users (username, password_hash, role, employee_name)
-                     VALUES (:username, :hash, :role, :emp)'
-                );
-                $stmt->execute([
-                    ':username' => $uname,
-                    ':hash'     => $upass,
-                    ':role'     => $urole,
-                    ':emp'      => ($urole === 'staff' && $uempname !== '') ? $uempname : null,
-                ]);
-                $message = "✅ 帳號「{$uname}」已建立"; $msgType = 'success';
-            } catch (PDOException $e) {
-                $message = ($e->getCode() === '23000') ? "帳號「{$uname}」已存在" : '建立失敗：'.$e->getMessage();
-                $msgType = 'error';
-            }
-        }
-
-    } elseif ($action === 'rename_user') {
-        $uid          = (int)($_POST['u_id']           ?? 0);
-        $newUsername  = trim($_POST['u_new_username']  ?? '');
-        $curUser      = currentUser();
-        if (empty($newUsername)) {
-            $message = '帳號名稱不能空白'; $msgType = 'error';
-        } else {
-            try {
-                $stmt = getDB()->prepare('UPDATE users SET username = ? WHERE id = ?');
-                $stmt->execute([$newUsername, $uid]);
-                // 若修改的是自己，同步更新 session
-                if ($uid === (int)($curUser['id'] ?? 0)) {
-                    $_SESSION['user']['username'] = $newUsername;
-                }
-                $message = "✅ 帳號名稱已更新為「{$newUsername}」"; $msgType = 'success';
-            } catch (PDOException $e) {
-                $message = ($e->getCode() === '23000') ? "帳號「{$newUsername}」已存在" : '更新失敗：'.$e->getMessage();
-                $msgType = 'error';
-            }
-        }
-
-    } elseif ($action === 'reset_password') {
-        $uid   = (int)($_POST['u_id']       ?? 0);
-        $upass = $_POST['u_new_password']    ?? '';
-
-        if (strlen($upass) < 6) {
-            $message = '新密碼至少需要 6 個字元'; $msgType = 'error';
-        } else {
-            $stmt = getDB()->prepare('UPDATE users SET password_hash = ? WHERE id = ?');
-            $stmt->execute([$upass, $uid]);
-            $message = $stmt->rowCount() > 0 ? '✅ 密碼已重設' : '找不到該帳號';
-            $msgType = $stmt->rowCount() > 0 ? 'success' : 'error';
-        }
-
-    } elseif ($action === 'delete_user') {
-        $uid      = (int)($_POST['u_id']       ?? 0);
-        $uname    = $_POST['u_username']        ?? '';
-        $curUser  = currentUser();
-
-        if ($uid === (int)($curUser['id'] ?? 0)) {
-            $message = '不能刪除自己的帳號'; $msgType = 'error';
-        } else {
-            $stmt = getDB()->prepare('DELETE FROM users WHERE id = ?');
-            $stmt->execute([$uid]);
-            $message = $stmt->rowCount() > 0 ? "🗑️ 帳號「{$uname}」已刪除" : '找不到該帳號';
-            $msgType = $stmt->rowCount() > 0 ? 'success' : 'error';
-        }
-
     } elseif ($action === 'export_employees') {
         // ── 匯出員工資料統計表 ──────────────────────────
         $employees = getEmployees();
@@ -266,9 +191,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $employees = getEmployees();
-$allUsers  = getDB()->query(
-    'SELECT id, username, role, employee_name, created_at FROM users ORDER BY id'
-)->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="zh-TW">
@@ -307,15 +229,6 @@ $allUsers  = getDB()->query(
 .card-header h2 { font-size: 0.95em; color: var(--grey-700); margin: 0; }
 .empty-state { text-align: center; padding: 28px; color: var(--grey-500); font-size: 0.9em; }
 .night-val { color: var(--purple-600); font-weight: 700; }
-
-/* ── 帳號管理 ── */
-.user-table { width:100%; border-collapse:collapse; font-size:0.88em; }
-.user-table th { background:var(--green-50); color:var(--green-700); padding:9px 12px; text-align:left; border:1px solid #C8E6C9; font-weight:600; white-space:nowrap; }
-.user-table td { padding:8px 12px; border:1px solid #eee; vertical-align:middle; }
-.user-table tr:nth-child(even) td { background:#FAFAFA; }
-.reset-form { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
-.reset-form input[type="password"] { padding:6px 9px; border:1.5px solid var(--grey-300); border-radius:6px; font-size:0.85em; font-family:var(--font-body); width:130px; }
-.reset-form input:focus { outline:none; border-color:var(--green-600); }
 
 /* ── 員工卡片列表（桌機橫幅 / 手機直列）── */
 .emp-grid {
@@ -581,105 +494,6 @@ function toggleWageLabel(id) {
     if (labelEl) labelEl.textContent = id === 'add' ? text + '（元）' : text;
     wageEl.placeholder = isFulltime ? '例：30000' : '例：180';
     wageEl.title       = isFulltime ? '月薪' : '時薪';
-}
-</script>
-<!-- ── 帳號管理 ─────────────────────────────────── -->
-<div class="card" id="account">
-    <div class="card-title">🔑 帳號密碼管理</div>
-
-    <!-- 搜尋框 -->
-    <div class="search-wrap" style="margin-bottom:16px">
-        <span class="search-icon">🔍</span>
-        <input type="text" id="user-search" class="search-input"
-               placeholder="輸入帳號或員工姓名搜尋..."
-               oninput="filterUsers(this.value)">
-    </div>
-
-    <?php if (empty($allUsers)): ?>
-    <div class="empty-state">尚未建立任何帳號</div>
-    <?php else: ?>
-
-    <div id="no-user-msg" style="display:none;text-align:center;padding:20px;color:var(--grey-500)">找不到符合的帳號</div>
-
-    <div class="emp-grid" id="user-card-grid">
-    <?php
-    $curUser = currentUser();
-    foreach ($allUsers as $u):
-        $isSelf = (int)$u['id'] === (int)($curUser['id'] ?? 0);
-        $loop   = 'u' . $u['id'];
-    ?>
-    <div class="emp-card user-card"
-         data-username="<?php echo strtolower(htmlspecialchars($u['username'])); ?>"
-         data-empname="<?php echo strtolower(htmlspecialchars($u['employee_name'] ?? '')); ?>">
-
-        <!-- 卡片標題 -->
-        <div class="emp-card-header">
-            <div>
-                <div class="emp-card-name">
-                    <?php echo htmlspecialchars($u['username']); ?>
-                    <?php if ($isSelf): ?>
-                    <span style="font-size:0.72em;background:var(--green-100);color:var(--green-700);padding:2px 7px;border-radius:8px;margin-left:4px">自己</span>
-                    <?php endif; ?>
-                </div>
-                <div style="margin-top:4px">
-                    <span class="badge badge-<?php echo $u['role']==='admin'?'fulltime':'hourly'; ?>">
-                        <?php echo $u['role']==='admin'?'👑 管理員':'👤 員工'; ?>
-                    </span>
-                </div>
-            </div>
-            <div style="text-align:right;font-size:0.78em;color:var(--grey-500)">
-                <?php echo $u['employee_name'] ? htmlspecialchars($u['employee_name']) : '—'; ?>
-            </div>
-        </div>
-
-        <hr class="emp-card-divider">
-
-        <!-- 修改帳號名稱 -->
-        <form method="post" style="margin-bottom:10px">
-            <input type="hidden" name="action"     value="rename_user">
-            <input type="hidden" name="u_id"       value="<?php echo $u['id']; ?>">
-            <div class="edit-row" style="margin-bottom:6px">
-                <label style="font-size:0.75em;color:var(--grey-500);min-width:52px">帳號名稱</label>
-                <input type="text" name="u_new_username"
-                       value="<?php echo htmlspecialchars($u['username']); ?>"
-                       required
-                       style="flex:1;padding:7px 9px;border:1.5px solid var(--grey-300);border-radius:6px;font-size:0.88em;font-family:var(--font-body);color:var(--grey-900)">
-            </div>
-            <button type="submit" class="btn btn-ghost btn-sm btn-full">✏️ 修改帳號名稱</button>
-        </form>
-
-        <!-- 修改密碼 -->
-        <form method="post">
-            <input type="hidden" name="action"     value="reset_password">
-            <input type="hidden" name="u_id"       value="<?php echo $u['id']; ?>">
-            <input type="hidden" name="u_username" value="<?php echo htmlspecialchars($u['username']); ?>">
-            <div class="edit-row" style="margin-bottom:6px">
-                <label style="font-size:0.75em;color:var(--grey-500);min-width:52px">新密碼</label>
-                <input type="password" name="u_new_password"
-                       placeholder="至少 6 碼" minlength="6" required
-                       style="flex:1;padding:7px 9px;border:1.5px solid var(--grey-300);border-radius:6px;font-size:0.88em;font-family:var(--font-body)">
-            </div>
-            <button type="submit" class="btn btn-blue btn-sm btn-full">🔑 修改密碼</button>
-        </form>
-    </div>
-    <?php endforeach; ?>
-    </div>
-
-    <?php endif; ?>
-</div>
-
-<script>
-function filterUsers(kw) {
-    const k = kw.trim().toLowerCase();
-    const cards = document.querySelectorAll('.user-card');
-    let visible = 0;
-    cards.forEach(card => {
-        const match = card.dataset.username.includes(k) || card.dataset.empname.includes(k);
-        card.style.display = match ? '' : 'none';
-        if (match) visible++;
-    });
-    const noMsg = document.getElementById('no-user-msg');
-    if (noMsg) noMsg.style.display = visible === 0 ? '' : 'none';
 }
 </script>
 
