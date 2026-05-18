@@ -1038,7 +1038,7 @@ if ($isAdmin && isset($_GET['edit_id'])) {
             </div><!-- /results-area -->
         <?php endif; ?>
 
-        <!-- ── 修改登入密碼 ── -->
+        <!-- ── 修改登入密碼 ──
         <div class="card" style="margin-top:14px">
             <div class="card-title">🔑 修改登入密碼</div>
             <form method="post" onsubmit="return validatePwForm()">
@@ -1059,7 +1059,7 @@ if ($isAdmin && isset($_GET['edit_id'])) {
             </form>
         </div>
 
-    </div>
+    </div> -->
 
     <script>
     function toggleNav(btn) {

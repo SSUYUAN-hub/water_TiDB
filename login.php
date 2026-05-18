@@ -8,7 +8,7 @@ include_once __DIR__ . '/auth.php';
 
 // 已登入直接跳走
 if (isLoggedIn()) {
-    header('Location: ' . (isAdmin() ? 'admin.php' : 'attendance.php'));
+    header('Location: ' . (isAdmin() ? 'index.php' : 'attendance.php'));
     exit;
 }
 
