@@ -266,7 +266,7 @@ $isAdmin = isAdmin();
     </a>
 
     <!-- 帳號管理（管理員限定） -->
-    <a href="admin.php#account" class="menu-card amber">
+    <a href="account.php" class="menu-card amber">
       <div class="menu-icon">🔑</div>
       <div class="menu-title">帳號管理</div>
       <div class="menu-desc">管理登入帳號、重設密碼與權限設定</div>

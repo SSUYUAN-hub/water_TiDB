@@ -49,60 +49,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = '找不到該員工'; $msgType = 'error';
         }
 
-    } elseif ($action === 'add_user') {
-        $uname    = trim($_POST['u_username']     ?? '');
-        $upass    = $_POST['u_password']           ?? '';
-        $urole    = $_POST['u_role']               ?? 'staff';
-        $uempname = trim($_POST['u_employee_name'] ?? '');
-
-        if (empty($uname) || strlen($upass) < 6) {
-            $message = '帳號不能空白，且密碼至少 6 個字元'; $msgType = 'error';
-        } else {
-            try {
-                $stmt = getDB()->prepare(
-                    'INSERT INTO users (username, password_hash, role, employee_name)
-                     VALUES (:username, :hash, :role, :emp)'
-                );
-                $stmt->execute([
-                    ':username' => $uname,
-                    ':hash'     => $upass,
-                    ':role'     => $urole,
-                    ':emp'      => ($urole === 'staff' && $uempname !== '') ? $uempname : null,
-                ]);
-                $message = "✅ 帳號「{$uname}」已建立"; $msgType = 'success';
-            } catch (PDOException $e) {
-                $message = ($e->getCode() === '23000') ? "帳號「{$uname}」已存在" : '建立失敗：'.$e->getMessage();
-                $msgType = 'error';
-            }
-        }
-
-    } elseif ($action === 'reset_password') {
-        $uid   = (int)($_POST['u_id']       ?? 0);
-        $upass = $_POST['u_new_password']    ?? '';
-
-        if (strlen($upass) < 6) {
-            $message = '新密碼至少需要 6 個字元'; $msgType = 'error';
-        } else {
-            $stmt = getDB()->prepare('UPDATE users SET password_hash = ? WHERE id = ?');
-            $stmt->execute([$upass, $uid]);
-            $message = $stmt->rowCount() > 0 ? '✅ 密碼已重設' : '找不到該帳號';
-            $msgType = $stmt->rowCount() > 0 ? 'success' : 'error';
-        }
-
-    } elseif ($action === 'delete_user') {
-        $uid      = (int)($_POST['u_id']       ?? 0);
-        $uname    = $_POST['u_username']        ?? '';
-        $curUser  = currentUser();
-
-        if ($uid === (int)($curUser['id'] ?? 0)) {
-            $message = '不能刪除自己的帳號'; $msgType = 'error';
-        } else {
-            $stmt = getDB()->prepare('DELETE FROM users WHERE id = ?');
-            $stmt->execute([$uid]);
-            $message = $stmt->rowCount() > 0 ? "🗑️ 帳號「{$uname}」已刪除" : '找不到該帳號';
-            $msgType = $stmt->rowCount() > 0 ? 'success' : 'error';
-        }
-
     } elseif ($action === 'export_employees') {
         // ── 匯出員工資料統計表 ──────────────────────────
         $employees = getEmployees();
@@ -245,9 +191,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $employees = getEmployees();
-$allUsers  = getDB()->query(
-    'SELECT id, username, role, employee_name, created_at FROM users ORDER BY id'
-)->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="zh-TW">
@@ -286,15 +229,6 @@ $allUsers  = getDB()->query(
 .card-header h2 { font-size: 0.95em; color: var(--grey-700); margin: 0; }
 .empty-state { text-align: center; padding: 28px; color: var(--grey-500); font-size: 0.9em; }
 .night-val { color: var(--purple-600); font-weight: 700; }
-
-/* ── 帳號管理 ── */
-.user-table { width:100%; border-collapse:collapse; font-size:0.88em; }
-.user-table th { background:var(--green-50); color:var(--green-700); padding:9px 12px; text-align:left; border:1px solid #C8E6C9; font-weight:600; white-space:nowrap; }
-.user-table td { padding:8px 12px; border:1px solid #eee; vertical-align:middle; }
-.user-table tr:nth-child(even) td { background:#FAFAFA; }
-.reset-form { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
-.reset-form input[type="password"] { padding:6px 9px; border:1.5px solid var(--grey-300); border-radius:6px; font-size:0.85em; font-family:var(--font-body); width:130px; }
-.reset-form input:focus { outline:none; border-color:var(--green-600); }
 
 /* ── 員工卡片列表（桌機橫幅 / 手機直列）── */
 .emp-grid {
@@ -359,9 +293,8 @@ $allUsers  = getDB()->query(
       <span class="topbar-link" style="background:rgba(255,255,255,0.1);cursor:default">
         👑 <?php echo htmlspecialchars(currentUser()['username'] ?? ''); ?>
       </span>
-      <!-- <a href="attendance.php" class="topbar-link">📊 出勤查詢</a> -->
-      <a href="index.php"      class="topbar-link">🏠 首頁</a>
-      <a href="logout.php"     class="topbar-link">登出</a>
+      <a href="index.php" class="topbar-link">🏠 首頁</a>
+      <a href="logout.php" class="topbar-link">登出</a>
     </nav>
   </div>
 </div>
@@ -562,122 +495,6 @@ function toggleWageLabel(id) {
     wageEl.placeholder = isFulltime ? '例：30000' : '例：180';
     wageEl.title       = isFulltime ? '月薪' : '時薪';
 }
-</script>
-<!-- ── 帳號管理 ─────────────────────────────────── -->
-<div class="card">
-    <div class="card-title">🔑 登入帳號管理</div>
-
-    <!-- 新增帳號表單 -->
-    <form method="post" style="margin-bottom:20px">
-        <input type="hidden" name="action" value="add_user">
-        <div class="form-row">
-            <div class="fg">
-                <label>帳號</label>
-                <input type="text" name="u_username" placeholder="登入帳號" required>
-            </div>
-            <div class="fg">
-                <label>密碼（至少6碼）</label>
-                <input type="password" name="u_password" placeholder="••••••" required>
-            </div>
-            <div class="fg">
-                <label>角色</label>
-                <select name="u_role" id="u-role-sel" onchange="toggleEmpSelect()">
-                    <option value="admin">👑 管理員</option>
-                    <option value="staff" selected>👤 員工</option>
-                </select>
-            </div>
-            <div class="fg" id="u-emp-field">
-                <label>對應員工</label>
-                <select name="u_employee_name">
-                    <option value="">— 請選擇 —</option>
-                    <?php foreach ($employees as $e): ?>
-                    <option value="<?php echo htmlspecialchars($e['name']); ?>">
-                        <?php echo htmlspecialchars($e['name']); ?>
-                    </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="fg">
-                <label>&nbsp;</label>
-                <button type="submit" class="btn btn-add">＋ 新增帳號</button>
-            </div>
-        </div>
-    </form>
-
-    <!-- 現有帳號列表 -->
-    <?php if (empty($allUsers)): ?>
-    <div class="empty-state">尚未建立任何帳號</div>
-    <?php else: ?>
-    <div style="overflow-x:auto">
-    <table class="user-table">
-        <thead>
-            <tr>
-                <th>帳號</th>
-                <th>角色</th>
-                <th>對應員工</th>
-                <th>建立時間</th>
-                <th>重設密碼</th>
-                <th>操作</th>
-            </tr>
-        </thead>
-        <tbody>
-        <?php
-        $curUser = currentUser();
-        foreach ($allUsers as $u):
-            $isSelf = (int)$u['id'] === (int)($curUser['id'] ?? 0);
-        ?>
-        <tr>
-            <td>
-                <strong><?php echo htmlspecialchars($u['username']); ?></strong>
-                <?php if ($isSelf): ?>
-                <span style="font-size:0.75em;color:var(--grey-500)">（自己）</span>
-                <?php endif; ?>
-            </td>
-            <td>
-                <span class="badge badge-<?php echo $u['role']==='admin'?'fulltime':'hourly'; ?>">
-                    <?php echo $u['role']==='admin'?'👑 管理員':'👤 員工'; ?>
-                </span>
-            </td>
-            <td style="color:var(--grey-<?php echo $u['employee_name']?'900':'300'; ?>)">
-                <?php echo $u['employee_name'] ? htmlspecialchars($u['employee_name']) : '—'; ?>
-            </td>
-            <td style="color:var(--grey-500);font-size:0.85em"><?php echo $u['created_at']; ?></td>
-            <td>
-                <form method="post" class="reset-form">
-                    <input type="hidden" name="action"     value="reset_password">
-                    <input type="hidden" name="u_id"       value="<?php echo $u['id']; ?>">
-                    <input type="hidden" name="u_username" value="<?php echo htmlspecialchars($u['username']); ?>">
-                    <input type="password" name="u_new_password" placeholder="新密碼" minlength="6">
-                    <button type="submit" class="btn btn-ghost btn-sm">🔄 重設</button>
-                </form>
-            </td>
-            <td>
-                <?php if ($isSelf): ?>
-                <span style="font-size:0.8em;color:var(--grey-400)">無法刪除</span>
-                <?php else: ?>
-                <form method="post" style="margin:0"
-                      onsubmit="return confirm('確定刪除帳號「<?php echo htmlspecialchars($u['username']); ?>」？')">
-                    <input type="hidden" name="action"     value="delete_user">
-                    <input type="hidden" name="u_id"       value="<?php echo $u['id']; ?>">
-                    <input type="hidden" name="u_username" value="<?php echo htmlspecialchars($u['username']); ?>">
-                    <button type="submit" class="btn btn-danger btn-sm">🗑️ 刪除</button>
-                </form>
-                <?php endif; ?>
-            </td>
-        </tr>
-        <?php endforeach; ?>
-        </tbody>
-    </table>
-    </div>
-    <?php endif; ?>
-</div>
-
-<script>
-function toggleEmpSelect() {
-    const role = document.getElementById('u-role-sel').value;
-    document.getElementById('u-emp-field').style.display = role === 'staff' ? '' : 'none';
-}
-toggleEmpSelect(); // 初始化
 </script>
 
 </div>
