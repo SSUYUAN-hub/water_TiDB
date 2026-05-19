@@ -125,7 +125,7 @@ $curUser = currentUser();
   padding: 9px 12px; text-align: left;
   border: 1px solid #C8E6C9; font-weight: 600; white-space: nowrap;
 }
-.user-table td { padding: 8px 12px; border: 1px solid #eee; vertical-align: middle; }
+.user-table td { padding: 8px 5px; border: 1px solid #eee; vertical-align: middle; text-align: center;}
 .user-table tr:nth-child(even) td { background: #FAFAFA; }
 
 .inline-form { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
