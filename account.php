@@ -21,13 +21,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = '帳號不能空白，且密碼至少 6 個字元'; $msgType = 'error';
         } else {
             try {
+                $hashedPass = password_hash($upass, PASSWORD_BCRYPT, ['cost' => 12]);
                 $stmt = getDB()->prepare(
                     'INSERT INTO users (username, password_hash, role, employee_name)
                      VALUES (:username, :hash, :role, :emp)'
                 );
                 $stmt->execute([
                     ':username' => $uname,
-                    ':hash'     => $upass,
+                    ':hash'     => $hashedPass,
                     ':role'     => $urole,
                     ':emp'      => ($urole === 'staff' && $uempname !== '') ? $uempname : null,
                 ]);
@@ -66,8 +67,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (strlen($upass) < 6) {
             $message = '新密碼至少需要 6 個字元'; $msgType = 'error';
         } else {
+            $hashedPass = password_hash($upass, PASSWORD_BCRYPT, ['cost' => 12]);
             $stmt = getDB()->prepare('UPDATE users SET password_hash = ? WHERE id = ?');
-            $stmt->execute([$upass, $uid]);
+            $stmt->execute([$hashedPass, $uid]);
             $message = $stmt->rowCount() > 0 ? '✅ 密碼已修改' : '找不到該帳號';
             $msgType = $stmt->rowCount() > 0 ? 'success' : 'error';
         }

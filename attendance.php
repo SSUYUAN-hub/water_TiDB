@@ -384,12 +384,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = getDB()->prepare('SELECT password_hash FROM users WHERE id = ?');
             $stmt->execute([$user['id']]);
             $row = $stmt->fetch();
-            if (!$row || $oldPass !== $row['password_hash']) {
+            if (!$row || !password_verify($oldPass, $row['password_hash'])) {
                 $message = '目前密碼輸入錯誤';
                 $msgType = 'error';
             } else {
+                $hashedNew = password_hash($newPass, PASSWORD_BCRYPT, ['cost' => 12]);
                 $upd = getDB()->prepare('UPDATE users SET password_hash = ? WHERE id = ?');
-                $upd->execute([$newPass, $user['id']]);
+                $upd->execute([$hashedNew, $user['id']]);
                 $message = '✅ 密碼已成功修改';
                 $msgType = 'success';
             }

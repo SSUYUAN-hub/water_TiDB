@@ -1,6 +1,13 @@
 <?php
-ini_set('display_errors', 1);
+// 正式環境關閉錯誤顯示，改寫入 log
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
 error_reporting(E_ALL);
+
+// Session 安全設定
+ini_set('session.cookie_httponly', 1);
+ini_set('session.cookie_secure', 1);
+ini_set('session.cookie_samesite', 'Strict');
 session_start();
 require_once __DIR__ . '/vendor/autoload.php';
 include_once __DIR__ . '/db.php';
@@ -28,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$username]);
             $user = $stmt->fetch();
 
-            if ($user && $password === $user['password_hash']) {
+            if ($user && password_verify($password, $user['password_hash'])) {
                 // 登入成功：寫入 session
                 session_regenerate_id(true); // 防 session fixation
                 $_SESSION['user'] = [
@@ -46,7 +53,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errorMsg = '帳號或密碼錯誤';
             }
         } catch (PDOException $e) {
-    $errorMsg = '系統錯誤：' . $e->getMessage(); // 暫時改這行
+            error_log('Login DB error: ' . $e->getMessage());
+            $errorMsg = '系統發生錯誤，請稍後再試';
         }
     }
 }
