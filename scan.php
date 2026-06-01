@@ -306,29 +306,40 @@ if (!$skipScan && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['card_i
                 }
             }
 
-            // 策略一成功
+            // ── 年月決策 ──────────────────────────────────────
+            // OCR 結果先存入 $ocrYearMonth，再決定是否採用
+            $ocrYearMonth = null;
             if ($candidateYear !== null && $candidateMonth !== null) {
-                $yearMonth = ($candidateYear + 1911) . '-' . str_pad($candidateMonth, 2, '0', STR_PAD_LEFT);
+                $ocrYearMonth = ($candidateYear + 1911) . '-' . str_pad($candidateMonth, 2, '0', STR_PAD_LEFT);
             } else {
                 // 策略二：文字比對（支援「年」被誤讀的情況）
-                // 把上方 token 文字串接，嘗試各種年月格式
                 $topTexts2 = array_map(fn($t) => $t['text'], $topTokens2);
                 $topStr    = implode(' ', $topTexts2);
                 $topClean  = strtr($topStr, ['l'=>'1','O'=>'0','I'=>'1','o'=>'0','A'=>'月','#'=>'年','$'=>'年','&'=>'年']);
 
                 // 民國年月格式（含誤讀版本）
-                if (preg_match('/([1][0-9]{2})\s*[年#\$&]\s*([0-9]{1,2})\s*[月A]/', $topClean, $m)) {
+                if (preg_match('/([1][0-9]{2})\\s*[年#\\$&]\\s*([0-9]{1,2})\\s*[月A]/', $topClean, $m)) {
                     $y=(int)$m[1]; $mo=(int)$m[2];
                     if ($y>=100&&$y<=199&&$mo>=1&&$mo<=12)
-                        $yearMonth = ($y+1911).'-'.str_pad($mo,2,'0',STR_PAD_LEFT);
+                        $ocrYearMonth = ($y+1911).'-'.str_pad($mo,2,'0',STR_PAD_LEFT);
                 }
                 // 純數字格式「115 4」（年後面緊接月）
-                elseif (preg_match('/([1][0-9]{2})\s+([1-9]|1[0-2])(?:\s|$)/', $topClean, $m)) {
+                elseif (preg_match('/([1][0-9]{2})\\s+([1-9]|1[0-2])(?:\\s|$)/', $topClean, $m)) {
                     $y=(int)$m[1]; $mo=(int)$m[2];
                     if ($y>=100&&$y<=199&&$mo>=1&&$mo<=12)
-                        $yearMonth = ($y+1911).'-'.str_pad($mo,2,'0',STR_PAD_LEFT);
+                        $ocrYearMonth = ($y+1911).'-'.str_pad($mo,2,'0',STR_PAD_LEFT);
                 }
             }
+
+            // 第二面掃描時（prefill_yearmonth 有值）→ 鎖定第一面年月，不被 OCR 覆蓋
+            // 第一面掃描 → 用 OCR 結果，沒辨識到則維持預設 date('Y-m')
+            $prefillYM = $_POST['prefill_yearmonth'] ?? '';
+            if (!empty($prefillYM)) {
+                $yearMonth = $prefillYM; // 第二面：強制沿用第一面確認的年月
+            } elseif ($ocrYearMonth !== null) {
+                $yearMonth = $ocrYearMonth; // 第一面：採用 OCR 辨識結果
+            }
+            // else: 維持 $yearMonth = date('Y-m') 預設值
 
             // ── 對每個日期，尋找同行的時間 token ──────────
             // 用相鄰日期 token 的平均間距算出行高，取 45% 作容忍（防止串位）
