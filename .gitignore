@@ -7,3 +7,4 @@ credentials.json
 # 個人設定與 Session
 .env
 composer.lock
+generate_hash.php
