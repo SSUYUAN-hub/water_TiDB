@@ -159,8 +159,15 @@ if (!$skipScan && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['card_i
 
                 $col    = null;
                 // 匹配帶冒號時間 12:34 或純數字4位 0200 或3位 200
-                $isTime = preg_match('/^\d{1,2}[:\.\-]\d{2}$/', $tok['text'])
-                       || preg_match('/^\d{3,4}$/', $tok['text']);
+                // 先做 OCR 錯誤替換再判斷，避免 O200/D200 等被排除
+                $textForCheck = strtr($tok['text'], [
+                    'O'=>'0','o'=>'0','Q'=>'0','D'=>'0','q'=>'0',
+                    'l'=>'1','I'=>'1','i'=>'1','|'=>'1',
+                    'S'=>'5','s'=>'5','B'=>'8','Z'=>'2','z'=>'2','?'=>'0',
+                ]);
+                $textForCheck = preg_replace('/[^0-9:]/', '', $textForCheck);
+                $isTime = preg_match('/^\d{1,2}:\d{2}$/', $textForCheck)
+                       || preg_match('/^\d{3,4}$/', $textForCheck);
                 $isDate = preg_match('/^\d{1,2}$/', $tok['text'])
                           && (int)$tok['text'] >= 1
                           && (int)$tok['text'] <= 31;
@@ -324,7 +331,19 @@ if (!$skipScan && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['card_i
             }
 
             // ── 對每個日期，尋找同行的時間 token ──────────
-            $rowTolerance = $imgWidth * 0.08; // Y 軸容忍範圍（同行判斷，稍大以容許卡片傾斜）
+            // 用相鄰日期 token 的平均間距算出行高，取 45% 作容忍（防止串位）
+            $dateTokensArr = array_values($dateTokens);
+            if (count($dateTokensArr) >= 2) {
+                $yDiffs = [];
+                for ($di = 1; $di < count($dateTokensArr); $di++) {
+                    $diff = $dateTokensArr[$di]['y'] - $dateTokensArr[$di-1]['y'];
+                    if ($diff > 0) $yDiffs[] = $diff;
+                }
+                $avgRowHeight = !empty($yDiffs) ? array_sum($yDiffs) / count($yDiffs) : ($imgH * 0.05);
+                $rowTolerance = $avgRowHeight * 0.45;
+            } else {
+                $rowTolerance = $imgH * 0.025;
+            }
 
             foreach ($dateTokens as $dateTok) {
                 $dateNum = (int)$dateTok['text'];
@@ -347,11 +366,11 @@ if (!$skipScan && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['card_i
                     }
                 }
 
-                // ── 替補規則：有第一段上班但沒有第一段下班 ──
-                // 自動抓取第二段下班（灰色欄）作為第一段下班替補
-                if ($s1_start && !$s1_end && $s2_end) {
-                    $s1_end = $s2_end; // 替補
-                    $s2_end = '';       // 清除，避免重複計算
+                // ── 替補規則：第一段下班空白 → 用第二段下班遞補 ──
+                // 不需要 s1_start 有值才觸發，只要 s1_end 空且 s2_end 有值即遞補
+                if (!$s1_end && $s2_end) {
+                    $s1_end = $s2_end;
+                    $s2_end = '';
                 }
 
                 // 至少要有一個時間才列入
@@ -387,29 +406,39 @@ if (!$skipScan && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['card_i
 
 // 時間正規化（處理 OCR 常見錯誤）
 function normalizeTime(string $t): string {
-    // 替換常見 OCR 錯誤字元
-    $t = strtr($t, ['O'=>'0','o'=>'0','l'=>'1','I'=>'1','S'=>'5','B'=>'8','D'=>'0']);
+    // 替換常見 OCR 錯誤字元（手寫數字特別容易被誤讀）
+    $t = strtr($t, [
+        'O'=>'0','o'=>'0','Q'=>'0','D'=>'0','q'=>'0',
+        'l'=>'1','I'=>'1','i'=>'1','|'=>'1',
+        'S'=>'5','s'=>'5',
+        'B'=>'8','b'=>'6',
+        'Z'=>'2','z'=>'2',
+        'G'=>'6','g'=>'9',
+        '?'=>'0',
+    ]);
     // 統一分隔符為冒號
     $t = preg_replace('/[.\-]/', ':', $t);
 
+    // 去掉非數字非冒號的雜訊字元（保留冒號）
+    $tClean = preg_replace('/[^0-9:]/', '', $t);
+
     // 已有冒號格式：12:34
-    if (preg_match('/^(\d{1,2}):(\d{2})$/', $t, $m)) {
+    if (preg_match('/^(\d{1,2}):(\d{2})$/', $tClean, $m)) {
         $h = (int)$m[1]; $mi = (int)$m[2];
-        if ($h <= 23 && $mi <= 59)
+        if ($h <= 29 && $mi <= 59)
             return str_pad($h, 2, '0', STR_PAD_LEFT) . ':' . str_pad($mi, 2, '0', STR_PAD_LEFT);
     }
-    // 4位純數字：0200 → 02:00，跨夜允許 00~29 小時（但一般不超過 06）
-    if (preg_match('/^(\d{4})$/', $t, $m)) {
-        $h  = (int)substr($t, 0, 2);
-        $mi = (int)substr($t, 2, 2);
-        // 允許 00:00~29:59（跨夜班次可能超過24）
+    // 4位純數字：0200 → 02:00
+    if (preg_match('/^(\d{4})$/', $tClean, $m)) {
+        $h  = (int)substr($tClean, 0, 2);
+        $mi = (int)substr($tClean, 2, 2);
         if ($h <= 29 && $mi <= 59)
             return str_pad($h, 2, '0', STR_PAD_LEFT) . ':' . str_pad($mi, 2, '0', STR_PAD_LEFT);
     }
     // 3位數字：200 → 02:00
-    if (preg_match('/^(\d{3})$/', $t, $m)) {
-        $h  = (int)substr($t, 0, 1);
-        $mi = (int)substr($t, 1, 2);
+    if (preg_match('/^(\d{3})$/', $tClean, $m)) {
+        $h  = (int)substr($tClean, 0, 1);
+        $mi = (int)substr($tClean, 1, 2);
         if ($h <= 9 && $mi <= 59)
             return '0' . $h . ':' . str_pad($mi, 2, '0', STR_PAD_LEFT);
     }
