@@ -69,7 +69,24 @@ if ($skipScan && $isSide2) {
 
 if (!$skipScan && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['card_image'])) {
     try {
-        $rawImage  = file_get_contents($_FILES['card_image']['tmp_name']);
+        // ── 圖片安全驗證 ────────────────────────────────
+        $uploadedFile = $_FILES['card_image'];
+        $allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        $allowedExts  = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+        $fileExt      = strtolower(pathinfo($uploadedFile['name'], PATHINFO_EXTENSION));
+        // 用 finfo 實際讀取檔案 MIME，不信任瀏覽器回報的 type
+        $finfo    = finfo_open(FILEINFO_MIME_TYPE);
+        $realMime = finfo_file($finfo, $uploadedFile['tmp_name']);
+        finfo_close($finfo);
+
+        if (!in_array($realMime, $allowedMimes) || !in_array($fileExt, $allowedExts)) {
+            throw new Exception('僅允許上傳圖片檔案（JPG / PNG / GIF / WEBP）');
+        }
+        if ($uploadedFile['size'] > 10 * 1024 * 1024) {
+            throw new Exception('圖片檔案大小不能超過 10MB');
+        }
+
+        $rawImage  = file_get_contents($uploadedFile['tmp_name']);
         $imageData = base64_encode($rawImage);
 
         // ── 呼叫 Google Vision API ──────────────────────

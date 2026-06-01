@@ -400,13 +400,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // 匯出（管理員 + 員工都可以）
     if ($action === 'export_db') {
         $exportEmp = $isAdmin ? ($_POST['export_emp'] ?? '') : $staffEmpName;
-        $exportYM  = $_POST['export_ym'] ?? date('Y-m');
-        $rows      = getAttendanceByMonth($exportEmp, $exportYM);
-        $emp       = getEmployee($exportEmp);
-        if (!$emp || empty($rows)) {
-            $message = '此月份無出勤紀錄';
+        // 員工身分二次驗證：確保匯出的員工名稱與 session 綁定的一致
+        if (!$isAdmin && $exportEmp !== $staffEmpName) {
+            $message = '權限不足';
             $msgType = 'error';
-        } else outputExcel($rows, $emp, $exportYM);
+        } else {
+            $exportYM  = $_POST['export_ym'] ?? date('Y-m');
+            $rows      = getAttendanceByMonth($exportEmp, $exportYM);
+            $emp       = getEmployee($exportEmp);
+            if (!$emp || empty($rows)) {
+                $message = '此月份無出勤紀錄';
+                $msgType = 'error';
+            } else outputExcel($rows, $emp, $exportYM);
+        }
     }
 
     // 年份匯出（管理員限定）
@@ -491,7 +497,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 //  GET 查詢
 // ══════════════════════════════════════════════════════════
 $employees  = getEmployees();
+// 員工身分：強制鎖定自己的 employee_name，忽略 URL 參數
 $selEmp     = $isAdmin ? ($_GET['emp'] ?? ($employees[0]['name'] ?? '')) : $staffEmpName;
+// 員工帳號若沒有對應員工姓名（employee_name 為空），導向提示
+if (!$isAdmin && empty($selEmp)) {
+    $message = '您的帳號尚未綁定員工資料，請聯絡管理員';
+    $msgType = 'error';
+}
 $queryMode  = $_GET['mode'] ?? 'month';
 $selYear    = $_GET['year'] ?? date('Y');
 $selYM      = $_GET['ym']   ?? date('Y-m');
@@ -543,6 +555,7 @@ if ($isAdmin && isset($_GET['edit_id'])) {
     $editStmt = getDB()->prepare('SELECT * FROM attendance WHERE id = ?');
     $editStmt->execute([(int)$_GET['edit_id']]);
     $editRow = $editStmt->fetch();
+    // 確認此紀錄屬於管理員有權存取的範圍（任何員工皆可）
 }
 ?>
 <!DOCTYPE html>
