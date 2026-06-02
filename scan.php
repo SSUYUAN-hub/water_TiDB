@@ -69,24 +69,7 @@ if ($skipScan && $isSide2) {
 
 if (!$skipScan && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['card_image'])) {
     try {
-        // ── 圖片安全驗證 ────────────────────────────────
-        $uploadedFile = $_FILES['card_image'];
-        $allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-        $allowedExts  = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-        $fileExt      = strtolower(pathinfo($uploadedFile['name'], PATHINFO_EXTENSION));
-        // 用 finfo 實際讀取檔案 MIME，不信任瀏覽器回報的 type
-        $finfo    = finfo_open(FILEINFO_MIME_TYPE);
-        $realMime = finfo_file($finfo, $uploadedFile['tmp_name']);
-        finfo_close($finfo);
-
-        if (!in_array($realMime, $allowedMimes) || !in_array($fileExt, $allowedExts)) {
-            throw new Exception('僅允許上傳圖片檔案（JPG / PNG / GIF / WEBP）');
-        }
-        if ($uploadedFile['size'] > 10 * 1024 * 1024) {
-            throw new Exception('圖片檔案大小不能超過 10MB');
-        }
-
-        $rawImage  = file_get_contents($uploadedFile['tmp_name']);
+        $rawImage  = file_get_contents($_FILES['card_image']['tmp_name']);
         $imageData = base64_encode($rawImage);
 
         // ── 呼叫 Google Vision API ──────────────────────
@@ -179,11 +162,17 @@ if (!$skipScan && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['card_i
                 $col    = null;
                 // 匹配帶冒號時間 12:34 或純數字4位 0200 或3位 200
                 // 先做 OCR 錯誤替換再判斷，避免 O200/D200 等被排除
+                // 用與 normalizeTime 完全一致的替換表做預判，避免 D200/O200 被排除
                 $textForCheck = strtr($tok['text'], [
                     'O'=>'0','o'=>'0','Q'=>'0','D'=>'0','q'=>'0',
                     'l'=>'1','I'=>'1','i'=>'1','|'=>'1',
-                    'S'=>'5','s'=>'5','B'=>'8','Z'=>'2','z'=>'2','?'=>'0',
+                    'S'=>'5','s'=>'5',
+                    'B'=>'8','b'=>'6',
+                    'Z'=>'2','z'=>'2',
+                    'G'=>'6','g'=>'9',
+                    '?'=>'0',
                 ]);
+                $textForCheck = preg_replace('/[.\-]/', ':', $textForCheck);
                 $textForCheck = preg_replace('/[^0-9:]/', '', $textForCheck);
                 $isTime = preg_match('/^\d{1,2}:\d{2}$/', $textForCheck)
                        || preg_match('/^\d{3,4}$/', $textForCheck);
@@ -397,8 +386,9 @@ if (!$skipScan && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['card_i
                 }
 
                 // ── 替補規則：第一段下班空白 → 用第二段下班遞補 ──
-                // 不需要 s1_start 有值才觸發，只要 s1_end 空且 s2_end 有值即遞補
-                if (!$s1_end && $s2_end) {
+                // 條件：s1_end 空白 且 s2_end 有值 且 s2_start 也空白
+                // （若 s2_start 有值代表真正的兩段班，不遞補）
+                if (!$s1_end && $s2_end && !$s2_start) {
                     $s1_end = $s2_end;
                     $s2_end = '';
                 }
