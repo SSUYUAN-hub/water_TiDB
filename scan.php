@@ -38,7 +38,7 @@ if ($skipScan && $isSide2) {
         // 計算預覽薪資
         $previewHours = 0; $previewSalary = 0; $previewOT = 0;
         if ($s1s && $s1e) {
-            $cal = calculateSalary($s1s, $s1e, $wage, $empType, ($s1['has_break'] ?? '1') === '1');
+            $cal = calculateSalary($s1s, $s1e, $wage, $empType, ($s1['has_break'] ?? '0') === '1');
             $previewHours  = $cal['total_hours'];
             $previewSalary = $cal['salary'];
             $previewOT     = $cal['overtime_hours'] ?? 0;
@@ -54,7 +54,7 @@ if ($skipScan && $isSide2) {
             'shift1_end'  => $s1e,
             'shift2_start'=> $s2s,
             'shift2_end'  => $s2e,
-            'has_break'   => $s1['has_break']   ?? '1',
+            'has_break'   => $s1['has_break']   ?? '0',
             'apply_night' => $s1['apply_night'] ?? '0',
             'is_night'    => ($s1['apply_night'] ?? '0') === '1',
             'preview'     => [
@@ -637,16 +637,11 @@ function checkNightShift(string $endTime): bool {
 
         <?php if ($empType === 'fulltime'): ?>
         <div class="break-row">
-            <span>休息：</span>
-            <label>
-                <input type="radio" name="day[<?php echo $i; ?>][has_break]" value="1"
-                       checked onchange="recalcDay(<?php echo $i; ?>)">
-                <span class="break-tag yes">✅ 有休息</span>
-            </label>
-            <label>
-                <input type="radio" name="day[<?php echo $i; ?>][has_break]" value="0"
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="checkbox" name="day[<?php echo $i; ?>][has_break]" value="1"
+                       style="width:16px;height:16px;accent-color:var(--green-700);cursor:pointer"
                        onchange="recalcDay(<?php echo $i; ?>)">
-                <span class="break-tag no">⚡ 沒休息</span>
+                <span class="break-tag yes">✅ 有休息（扣1小時）</span>
             </label>
         </div>
         <?php else: ?>
@@ -957,42 +952,12 @@ function toggleFormula(i) {
 }
 
 function toggleSkip(i, skipped) {
-    // 更新公式明細
-    const detailEl = document.getElementById('formula-detail-' + i);
-    if (detailEl && empType === 'fulltime') {
-        const h    = Math.round(wage / 30 / 8 * 100) / 100;
-        const h134 = Math.round(h * 4/3 * 100) / 100;
-        const h167 = Math.round(h * 5/3 * 100) / 100;
-        const rb2  = document.querySelector(`[name="day[${i}][has_break]"]:checked`);
-        const hb2  = rb2 ? rb2.value === '1' : true;
-        const rawH = diffHours(g('s1_start'), g('s1_end')) + diffHours(g('s2_start'), g('s2_end'));
-        const brkT = (hb2 && rawH >= 8) ? 0.5 : 0;
-        const act  = Math.max(rawH - brkT, 0);
-        const norm = Math.min(act, 8);
-        const ot1h = Math.min(Math.max(act-8,0), 2);
-        const ot2h = Math.max(act-10, 0);
-        const normPay = Math.round(norm * h);
-        const ot1Pay  = Math.round(ot1h * h134);
-        const ot2Pay  = Math.round(ot2h * h167);
-        let det = '';
-        if (brkT > 0) det += `<span style="color:#888">已扣除休息 0.5h，實際工時 ${Math.round(act*100)/100}h</span><br>`;
-        if (act <= 8) {
-            // 未超過8小時：只顯示工時，無加班費
-            det += `<span style="color:#2E7D32">正常工時 ${Math.round(act*100)/100}h，未超過8小時</span><br>`;
-            det += `<span style="color:#888">本日屬月薪範圍，無需另計加班費</span>`;
-        } else {
-            // 超過8小時：顯示加班明細
-            det += `<span style="color:#888">正常工時 8h（月薪範圍，不另計）</span><br>`;
-            if (ot1h > 0) det += `🔶 加班前2h：${Math.round(ot1h*100)/100}h × $${h134}（×4/3）= <strong style="color:#F57F17">$${ot1Pay}</strong><br>`;
-            if (ot2h > 0) det += `🔴 加班第3h起：${Math.round(ot2h*100)/100}h × $${h167}（×5/3）= <strong style="color:#C62828">$${ot2Pay}</strong><br>`;
-            det += `<span style="color:#C62828;font-weight:bold">加班費合計：$${Math.round(ot1Pay+ot2Pay)}</span>`;
-        }
-        detailEl.innerHTML = det;
-    }
-
     const card = document.querySelectorAll('.day-card')[i];
     if (!card) return;
-    card.querySelectorAll('input.time-input,input[type="radio"]').forEach(el => el.disabled = skipped);
+    card.querySelectorAll('input.time-input, input[type="radio"], input[type="checkbox"]').forEach(el => {
+        if (el.name && el.name.includes('[skip]')) return; // skip 本身不 disable
+        el.disabled = skipped;
+    });
     card.style.opacity = skipped ? '0.4' : '1';
 }
 document.addEventListener('DOMContentLoaded', () => {
@@ -1081,11 +1046,12 @@ function addManualDay() {
 
     const breakHtml = empType === 'fulltime' ? `
         <div class="break-row">
-            <span>休息：</span>
-            <label><input type="radio" name="day[${i}][has_break]" value="1" checked onchange="recalcDay(${i})">
-                <span class="break-tag yes">✅ 有休息</span></label>
-            <label><input type="radio" name="day[${i}][has_break]" value="0" onchange="recalcDay(${i})">
-                <span class="break-tag no">⚡ 沒休息</span></label>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="checkbox" name="day[${i}][has_break]" value="1"
+                       style="width:16px;height:16px;accent-color:var(--green-700);cursor:pointer"
+                       onchange="recalcDay(${i})">
+                <span class="break-tag yes">✅ 有休息（扣1小時）</span>
+            </label>
         </div>` : `<input type="hidden" name="day[${i}][has_break]" value="0">`;
 
     // 建立新卡片 HTML
