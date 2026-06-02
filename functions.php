@@ -11,7 +11,7 @@ function monthlyToHourly(int $monthlySalary): float {
 }
 
 // =============================================
-// 正職員工：超過 8h5min 才計算加班費（依勞基法）
+// 正職員工：超過 8 小時才計算加班費（依勞基法）
 // $hourlyRate 已是換算後的時薪
 // =============================================
 function calculateSalaryFulltime($startTime, $endTime, float $hourlyRate, bool $hasBreak = false): array {
@@ -26,11 +26,11 @@ function calculateSalaryFulltime($startTime, $endTime, float $hourlyRate, bool $
     $breakTime       = $hasBreak ? 1.0 : 0;
     $actualWorkHours = max($totalHours - $breakTime, 0);
 
-    // 加班費計算（依勞基法，超過 8h5min = 8+5/60 才算加班）
-    $OT_THRESHOLD = 8 + 5 / 60; // 8.08333...
+    // 加班費計算（依勞基法，超過 8h5min 才算加班）
+    $OT_THRESHOLD = 8 + 5 / 60;
     $normalHours = 0;
-    $overtime1   = 0; // 前 2 小時加班（1.34 倍）
-    $overtime2   = 0; // 超過 2 小時後（1.67 倍）
+    $overtime1   = 0; // 前 2 小時加班（×4/3）
+    $overtime2   = 0; // 超過 2 小時後（×5/3）
 
     if ($actualWorkHours <= $OT_THRESHOLD) {
         $normalHours = $actualWorkHours;
@@ -46,7 +46,7 @@ function calculateSalaryFulltime($startTime, $endTime, float $hourlyRate, bool $
     }
 
     $overtimeHours = $overtime1 + $overtime2;
-    $overtimePay   = ($overtime1 * $hourlyRate * 1.34) + ($overtime2 * $hourlyRate * 1.67);
+    $overtimePay   = ($overtime1 * $hourlyRate * 4/3) + ($overtime2 * $hourlyRate * 5/3);
     $salary        = ($normalHours * $hourlyRate) + $overtimePay;
 
     return [
@@ -115,19 +115,19 @@ function getOvertimeFormula(int $monthlySalary): array {
     $h = monthlyToHourly($monthlySalary);
     return [
         'hourly_rate'    => round($h, 2),
-        'ot1_rate'       => round($h * 1.34, 2),
-        'ot2_rate'       => round($h * 1.67, 2),
+        'ot1_rate'       => round($h * 4/3, 2),
+        'ot2_rate'       => round($h * 5/3, 2),
         'formula_text'   => sprintf(
             "月薪 %s ÷ 30 ÷ 8 = 時薪 %s 元\n" .
             "正常工時（8h5min內）：%s × 時數\n" .
-            "加班前2小時（×1.34）：%s × 時數\n" .
-            "加班第3小時起（×1.67）：%s × 時數\n" .
+            "加班前2小時（×4/3≈1.3333）：%s × 時數\n" .
+            "加班第3小時起（×5/3≈1.6667）：%s × 時數\n" .
             "※ 勾選休息：扣除 1 小時後再計算",
             number_format($monthlySalary),
             round($h, 2),
             round($h, 2),
-            round($h * 1.34, 2),
-            round($h * 1.67, 2)
+            round($h * 4/3, 2),
+            round($h * 5/3, 2)
         ),
     ];
 }
