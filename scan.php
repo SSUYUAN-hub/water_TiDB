@@ -193,6 +193,19 @@ PROMPT;
                 $s2_end = '';
             }
 
+            // ── 需求3：時間取整 ──────────────────────────
+            $s1_start = roundTime($s1_start);
+            $s1_end   = roundTime($s1_end);
+
+            // s2_start：先取整，再確保距 s1_end 至少 60 分鐘
+            if ($s2_start && $s1_end) {
+                $s1EndMin = (int)explode(':', $s1_end)[0] * 60 + (int)explode(':', $s1_end)[1];
+                $s2_start = roundTime($s2_start, $s1EndMin);
+            } else {
+                $s2_start = roundTime($s2_start);
+            }
+            $s2_end = roundTime($s2_end);
+
             // 至少要有一個時間才列入
             if (!$s1_start && !$s1_end && !$s2_start && !$s2_end) continue;
 
@@ -268,6 +281,55 @@ function normalizeTime(string $t): string {
     return '';
 }
 
+// =============================================
+// 時間取整：距整點或半點正負10分鐘內 → 取近者
+// 超過10分鐘 → 維持原時間
+// $minAfterS1End: 若有設定，強制此時間不早於 s1_end + 60min
+// =============================================
+function roundTime(string $t, ?int $minAfterS1End = null): string {
+    if (empty($t)) return $t;
+    $parts = explode(':', $t);
+    if (count($parts) !== 2) return $t;
+    $h = (int)$parts[0];
+    $m = (int)$parts[1];
+    $total = $h * 60 + $m;
+
+    // 若需確保距 s1_end 至少 60 分鐘
+    if ($minAfterS1End !== null && $total < $minAfterS1End + 60) {
+        $total = $minAfterS1End + 60; // 至少滿足 1 小時間隔
+    }
+
+    // 取整：找最近的整點或半點
+    $candidates = [
+        (int)floor($total / 30) * 30,       // 下一個半點（往下）
+        (int)floor($total / 30) * 30 + 30,  // 上一個半點（往上）
+    ];
+    $best = null;
+    $bestDiff = PHP_INT_MAX;
+    foreach ($candidates as $c) {
+        $diff = abs($total - $c);
+        if ($diff <= 10 && $diff < $bestDiff) {
+            $bestDiff = $diff;
+            $best = $c;
+        }
+    }
+
+    if ($best !== null) {
+        $rh = intdiv($best, 60);
+        $rm = $best % 60;
+        return str_pad($rh, 2, '0', STR_PAD_LEFT) . ':' . str_pad($rm, 2, '0', STR_PAD_LEFT);
+    }
+
+    // 超過 ±10 分鐘：若 total 被 minAfterS1End 推移過，仍需回傳推移後的時間
+    if ($minAfterS1End !== null && $h * 60 + $m < $minAfterS1End + 60) {
+        $rh = intdiv($total, 60);
+        $rm = $total % 60;
+        return str_pad($rh, 2, '0', STR_PAD_LEFT) . ':' . str_pad($rm, 2, '0', STR_PAD_LEFT);
+    }
+
+    return $t; // 維持原時間
+}
+
 // 預覽計算（合併兩段工時）
 function previewCalc($s1, $e1, $s2, $e2, $wage, $empType): array {
     $total = 0;
@@ -278,16 +340,17 @@ function previewCalc($s1, $e1, $s2, $e2, $wage, $empType): array {
     if ($empType === 'hourly') {
         return ['total_hours' => round($total, 2), 'overtime_hours' => 0, 'salary' => (int)round($total * $wage)];
     }
-    // 正職：只計算加班費（超過8小時的部分），不足8小時薪資為0
+    // 正職：門檻 8h5min，預覽預設無休息
+    $OT_THRESHOLD = 8 + 5 / 60;
     $h   = round($wage / 30 / 8, 4);
-    $ot  = max($total - 8, 0);
+    $ot  = max($total - $OT_THRESHOLD, 0);
     $ot1 = min($ot, 2);
     $ot2 = max($ot - 2, 0);
     $otPay = (int)round($ot1 * $h * 1.34 + $ot2 * $h * 1.67);
     return [
         'total_hours'    => round($total, 2),
         'overtime_hours' => round($ot, 2),
-        'salary'         => $otPay, // 只顯示加班費，正常月薪不列入
+        'salary'         => $otPay,
     ];
 }
 
@@ -590,12 +653,12 @@ function checkNightShift(string $endTime): bool {
             <span>休息：</span>
             <label>
                 <input type="radio" name="day[<?php echo $i; ?>][has_break]" value="1"
-                       checked onchange="recalcDay(<?php echo $i; ?>)">
-                <span class="break-tag yes">✅ 有休息</span>
+                       onchange="recalcDay(<?php echo $i; ?>)">
+                <span class="break-tag yes">✅ 有休息（扣1小時）</span>
             </label>
             <label>
                 <input type="radio" name="day[<?php echo $i; ?>][has_break]" value="0"
-                       onchange="recalcDay(<?php echo $i; ?>)">
+                       checked onchange="recalcDay(<?php echo $i; ?>)">
                 <span class="break-tag no">⚡ 沒休息</span>
             </label>
         </div>
@@ -635,12 +698,12 @@ function checkNightShift(string $endTime): bool {
         <div class="formula-box" id="formula-box-<?php echo $i; ?>">
             <div style="font-weight:bold;color:#2E7D32;margin-bottom:4px">📋 勞基法加班費計算方式</div>
             <div>月薪 <strong>$<?php echo number_format($wage); ?></strong> ÷ 30 ÷ 8 ＝ 時薪 <strong>$<?php echo round($hourlyRate, 2); ?></strong> 元</div>
-            <div>✅ 正常工時（8h內）：$<?php echo round($hourlyRate, 2); ?> × 時數</div>
+            <div>✅ 正常工時（8h5min內）：$<?php echo round($hourlyRate, 2); ?> × 時數</div>
             <div>🔶 加班前2h（×1.34）：$<?php echo round($hourlyRate * 1.34, 2); ?> × 時數</div>
             <div>🔴 加班第3h起（×1.67）：$<?php echo round($hourlyRate * 1.67, 2); ?> × 時數</div>
             <div style="font-weight:bold;color:#555;margin-top:6px">本次計算明細：</div>
             <div class="formula-detail" id="formula-detail-<?php echo $i; ?>">輸入時間後自動顯示</div>
-            <div style="color:#888;font-size:0.9em;margin-top:4px">※ 工時滿8小時且有休息，扣除30分鐘後再計算加班</div>
+            <div style="color:#888;font-size:0.9em;margin-top:4px">※ 勾選有休息：扣除 1 小時後再計算加班</div>
         </div>
         <?php endif; ?>
 
@@ -829,20 +892,20 @@ function recalcDay(i) {
     const g = name => { const el = document.querySelector(`[name="day[${i}][${name}]"]`); return el ? el.value.trim() : ''; };
     let total = diffHours(g('s1_start'), g('s1_end')) + diffHours(g('s2_start'), g('s2_end'));
     let ot = 0, salary = 0;
+    const OT_THRESHOLD = 8 + 5 / 60; // 8h5min
     if (empType === 'hourly') {
         salary = Math.round(total * hourlyRate);
     } else {
-        // 正職：只計算加班費，不足8小時薪資為0
+        // 正職：有休息扣1小時，門檻 8h5min
         const rb = document.querySelector(`[name="day[${i}][has_break]"]:checked`);
-        const hb = rb ? rb.value === '1' : true;
-        const bt = (hb && total >= 8) ? 0.5 : 0;
+        const hb = rb ? rb.value === '1' : false;
+        const bt = hb ? 1.0 : 0;
         const act = Math.max(total - bt, 0);
         total = act;
-        const ot1 = Math.min(Math.max(act-8,0),2);
-        const ot2 = Math.max(act-10,0);
+        const ot1 = Math.min(Math.max(act - OT_THRESHOLD, 0), 2);
+        const ot2 = Math.max(act - OT_THRESHOLD - 2, 0);
         ot = ot1 + ot2;
-        // 只加班費，不含正常月薪部分
-        salary = Math.round(ot1*hourlyRate*1.34 + ot2*hourlyRate*1.67);
+        salary = Math.round(ot1 * hourlyRate * 1.34 + ot2 * hourlyRate * 1.67);
     }
 
     // 夜班津貼
@@ -853,29 +916,26 @@ function recalcDay(i) {
     // 更新公式明細
     const detailEl = document.getElementById('formula-detail-' + i);
     if (detailEl && empType === 'fulltime') {
+        const OT_THR  = 8 + 5 / 60;
         const h    = Math.round(wage / 30 / 8 * 100) / 100;
         const h134 = Math.round(h * 1.34 * 100) / 100;
         const h167 = Math.round(h * 1.67 * 100) / 100;
         const rb2  = document.querySelector(`[name="day[${i}][has_break]"]:checked`);
-        const hb2  = rb2 ? rb2.value === '1' : true;
+        const hb2  = rb2 ? rb2.value === '1' : false;
         const rawH = diffHours(g('s1_start'), g('s1_end')) + diffHours(g('s2_start'), g('s2_end'));
-        const brkT = (hb2 && rawH >= 8) ? 0.5 : 0;
+        const brkT = hb2 ? 1.0 : 0;
         const act  = Math.max(rawH - brkT, 0);
-        const norm = Math.min(act, 8);
-        const ot1h = Math.min(Math.max(act-8,0), 2);
-        const ot2h = Math.max(act-10, 0);
-        const normPay = Math.round(norm * h);
+        const ot1h = Math.min(Math.max(act - OT_THR, 0), 2);
+        const ot2h = Math.max(act - OT_THR - 2, 0);
         const ot1Pay  = Math.round(ot1h * h134);
         const ot2Pay  = Math.round(ot2h * h167);
         let det = '';
-        if (brkT > 0) det += `<span style="color:#888">已扣除休息 0.5h，實際工時 ${Math.round(act*100)/100}h</span><br>`;
-        if (act <= 8) {
-            // 未超過8小時：只顯示工時，無加班費
-            det += `<span style="color:#2E7D32">正常工時 ${Math.round(act*100)/100}h，未超過8小時</span><br>`;
+        if (brkT > 0) det += `<span style="color:#888">已扣除休息 1h，實際工時 ${Math.round(act*100)/100}h</span><br>`;
+        if (act <= OT_THR) {
+            det += `<span style="color:#2E7D32">正常工時 ${Math.round(act*100)/100}h，未超過 8h5min</span><br>`;
             det += `<span style="color:#888">本日屬月薪範圍，無需另計加班費</span>`;
         } else {
-            // 超過8小時：顯示加班明細
-            det += `<span style="color:#888">正常工時 8h（月薪範圍，不另計）</span><br>`;
+            det += `<span style="color:#888">正常工時 8h5min（月薪範圍，不另計）</span><br>`;
             if (ot1h > 0) det += `🔶 加班前2h：${Math.round(ot1h*100)/100}h × $${h134}（×1.34）= <strong style="color:#F57F17">$${ot1Pay}</strong><br>`;
             if (ot2h > 0) det += `🔴 加班第3h起：${Math.round(ot2h*100)/100}h × $${h167}（×1.67）= <strong style="color:#C62828">$${ot2Pay}</strong><br>`;
             det += `<span style="color:#C62828;font-weight:bold">加班費合計：$${Math.round(ot1Pay+ot2Pay)}</span>`;
@@ -907,29 +967,26 @@ function toggleSkip(i, skipped) {
     // 更新公式明細
     const detailEl = document.getElementById('formula-detail-' + i);
     if (detailEl && empType === 'fulltime') {
+        const OT_THR  = 8 + 5 / 60;
         const h    = Math.round(wage / 30 / 8 * 100) / 100;
         const h134 = Math.round(h * 1.34 * 100) / 100;
         const h167 = Math.round(h * 1.67 * 100) / 100;
         const rb2  = document.querySelector(`[name="day[${i}][has_break]"]:checked`);
-        const hb2  = rb2 ? rb2.value === '1' : true;
+        const hb2  = rb2 ? rb2.value === '1' : false;
         const rawH = diffHours(g('s1_start'), g('s1_end')) + diffHours(g('s2_start'), g('s2_end'));
-        const brkT = (hb2 && rawH >= 8) ? 0.5 : 0;
+        const brkT = hb2 ? 1.0 : 0;
         const act  = Math.max(rawH - brkT, 0);
-        const norm = Math.min(act, 8);
-        const ot1h = Math.min(Math.max(act-8,0), 2);
-        const ot2h = Math.max(act-10, 0);
-        const normPay = Math.round(norm * h);
+        const ot1h = Math.min(Math.max(act - OT_THR, 0), 2);
+        const ot2h = Math.max(act - OT_THR - 2, 0);
         const ot1Pay  = Math.round(ot1h * h134);
         const ot2Pay  = Math.round(ot2h * h167);
         let det = '';
-        if (brkT > 0) det += `<span style="color:#888">已扣除休息 0.5h，實際工時 ${Math.round(act*100)/100}h</span><br>`;
-        if (act <= 8) {
-            // 未超過8小時：只顯示工時，無加班費
-            det += `<span style="color:#2E7D32">正常工時 ${Math.round(act*100)/100}h，未超過8小時</span><br>`;
+        if (brkT > 0) det += `<span style="color:#888">已扣除休息 1h，實際工時 ${Math.round(act*100)/100}h</span><br>`;
+        if (act <= OT_THR) {
+            det += `<span style="color:#2E7D32">正常工時 ${Math.round(act*100)/100}h，未超過 8h5min</span><br>`;
             det += `<span style="color:#888">本日屬月薪範圍，無需另計加班費</span>`;
         } else {
-            // 超過8小時：顯示加班明細
-            det += `<span style="color:#888">正常工時 8h（月薪範圍，不另計）</span><br>`;
+            det += `<span style="color:#888">正常工時 8h5min（月薪範圍，不另計）</span><br>`;
             if (ot1h > 0) det += `🔶 加班前2h：${Math.round(ot1h*100)/100}h × $${h134}（×1.34）= <strong style="color:#F57F17">$${ot1Pay}</strong><br>`;
             if (ot2h > 0) det += `🔴 加班第3h起：${Math.round(ot2h*100)/100}h × $${h167}（×1.67）= <strong style="color:#C62828">$${ot2Pay}</strong><br>`;
             det += `<span style="color:#C62828;font-weight:bold">加班費合計：$${Math.round(ot1Pay+ot2Pay)}</span>`;
