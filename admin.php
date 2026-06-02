@@ -202,28 +202,30 @@ $employees = getEmployees();
 <style>
 .main-wrap { max-width: 1000px; }
 
-/* ── 漢堡選單：向下滑出 dropdown ── */
+/* ── 漢堡選單：手機版向下滑出 dropdown ── */
 .topbar { position: relative; }
-.topbar-nav {
-    display: none;
-    position: absolute;
-    top: 100%; right: 0;
-    min-width: 160px;
-    background: var(--green-800, #2e7d32);
-    border-radius: 0 0 10px 10px;
-    box-shadow: 0 6px 20px rgba(0,0,0,0.25);
-    flex-direction: column;
-    padding: 6px 0;
-    z-index: 200;
+@media (max-width: 540px) {
+    .topbar-nav {
+        display: none;
+        position: absolute;
+        top: 100%; right: 0;
+        min-width: 160px;
+        background: var(--green-800, #2e7d32);
+        border-radius: 0 0 10px 10px;
+        box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+        flex-direction: column;
+        padding: 6px 0;
+        z-index: 200;
+    }
+    .topbar-nav.open { display: flex; }
+    .topbar-nav .topbar-link {
+        display: block; width: 100%;
+        text-align: left; padding: 10px 18px;
+        border-radius: 0; background: transparent;
+        box-sizing: border-box; white-space: nowrap;
+    }
+    .topbar-nav .topbar-link:hover { background: rgba(255,255,255,0.12); }
 }
-.topbar-nav.open { display: flex; }
-.topbar-nav .topbar-link {
-    display: block; width: 100%;
-    text-align: left; padding: 10px 18px;
-    border-radius: 0; background: transparent;
-    box-sizing: border-box; white-space: nowrap;
-}
-.topbar-nav .topbar-link:hover { background: rgba(255,255,255,0.12); }
 
 /* 新增員工/帳號表單 */
 .form-row {
