@@ -39,6 +39,16 @@ function isStaff(): bool {
     return ($_SESSION['user']['role'] ?? '') === 'staff';
 }
 
+// ── 顯示名稱（管理員/女神Plus → 角色名；員工 → 員工姓名）──
+function displayName(): string {
+    $user = $_SESSION['user'] ?? [];
+    $role = $user['role'] ?? '';
+    if ($role === 'admin') return '👑 系統管理';
+    if ($role === 'goddess_plus') return '✨ 女神Plus';
+    // 員工：優先顯示綁定的員工姓名，否則顯示帳號
+    return $user['employee_name'] ?? $user['username'] ?? '';
+}
+
 // ── 角色顯示名稱（含 emoji）──────────────────────────
 function roleLabel(?string $role = null): string {
     $r = $role ?? ($_SESSION['user']['role'] ?? '');
