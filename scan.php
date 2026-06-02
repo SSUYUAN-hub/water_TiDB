@@ -130,7 +130,7 @@ PROMPT;
             ],
         ]);
 
-        $model = 'gemini-1.5-flash';
+        $model = 'gemini-3.1-flash-lite';
         $url   = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$geminiKey}";
 
         $ch = curl_init($url);
