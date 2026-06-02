@@ -350,6 +350,7 @@ $employees = getEmployees();
             <button type="submit" class="btn btn-export">
                 📊 匯出統計表 Excel
             </button>
+            <a href="import_employees.php" class="btn btn-ghost">📥 批量匯入</a>
         </form>
     </div>
     <!-- 搜尋框 -->
