@@ -126,13 +126,28 @@ $curUser = currentUser();
 .main-wrap { max-width: 900px; }
 
 .upload-zone {
-  border: 2px dashed #A5D6A7;
-  border-radius: var(--radius-md);
-  padding: 28px 20px;
-  text-align: center;
-  background: var(--green-50);
-  cursor: pointer;
-  transition: all var(--transition);
+display: flex;
+
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+
+    width: 100%;
+    min-height: 180px;
+
+    border: 2px dashed #A5D6A7;
+    border-radius: var(--radius-md);
+
+    padding: 28px 20px;
+
+    text-align: center;
+    background: var(--green-50);
+
+    cursor: pointer;
+    transition: all var(--transition);
+}
+#upload-form{
+    width:100%;
 }
 .upload-zone:hover { border-color: var(--green-700); background: var(--green-100); }
 .upload-zone input[type="file"] { display: none; }
