@@ -17,7 +17,7 @@ $employeeName   = $_POST['employee_name'] ?? '未命名';
 $empData        = getEmployee($employeeName);
 $empType        = $empData['type']            ?? 'hourly';
 $wage           = (int)($empData['hourly_rate'] ?? 180); // 正職=月薪, 時薪制=時薪
-$hourlyRate     = ($empType === 'fulltime') ? $wage / 240 : $wage;
+$hourlyRate     = ($empType === 'fulltime') ? round($wage / 30 / 8, 4) : $wage;
 $nightAllowance = (int)($empData['night_allowance'] ?? 0);
 $yearMonth      = $_POST['prefill_yearmonth'] ?? date('Y-m');
 
@@ -38,7 +38,7 @@ if ($skipScan && $isSide2) {
         // 計算預覽薪資
         $previewHours = 0; $previewSalary = 0; $previewOT = 0;
         if ($s1s && $s1e) {
-            $cal = calculateSalary($s1s, $s1e, $wage, $empType, ($s1['has_break'] ?? '0') === '1');
+            $cal = calculateSalary($s1s, $s1e, $wage, $empType, ($s1['has_break'] ?? '1') === '1');
             $previewHours  = $cal['total_hours'];
             $previewSalary = $cal['salary'];
             $previewOT     = $cal['overtime_hours'] ?? 0;
@@ -54,7 +54,7 @@ if ($skipScan && $isSide2) {
             'shift1_end'  => $s1e,
             'shift2_start'=> $s2s,
             'shift2_end'  => $s2e,
-            'has_break'   => $s1['has_break']   ?? '0',
+            'has_break'   => $s1['has_break']   ?? '1',
             'apply_night' => $s1['apply_night'] ?? '0',
             'is_night'    => ($s1['apply_night'] ?? '0') === '1',
             'preview'     => [
@@ -323,17 +323,21 @@ function previewCalc($s1, $e1, $s2, $e2, $wage, $empType): array {
     if ($empType === 'hourly') {
         return ['total_hours' => round($total, 2), 'overtime_hours' => 0, 'salary' => (int)round($total * $wage)];
     }
-    // 正職：門檻 8h5min，時薪不 round（與勞動部一致），加班費 ceil
-    $OT_THRESHOLD = 8 + 5 / 60;
-    $h   = $wage / 240;
-    $ot  = max($total - $OT_THRESHOLD, 0);
-    $ot1 = min($ot, 2);
-    $ot2 = max($ot - 2, 0);
-    $otPay = (int)ceil($ot1 * $h * 4/3 + $ot2 * $h * 5/3);
+    // 正職：門檻 > 8h5min 觸發，計算基準從 8h 整開始（與勞動部一致）
+    $OT_TRIGGER = 8 + 5 / 60;
+    $h = $wage / 240;
+    if ($total > $OT_TRIGGER) {
+        $ot  = $total - 8.0;
+        $ot1 = min($ot, 2);
+        $ot2 = max($ot - 2, 0);
+        $otPay = (int)ceil($ot1 * $h * 4/3 + $ot2 * $h * 5/3);
+    } else {
+        $ot = 0; $otPay = 0;
+    }
     return [
         'total_hours'    => round($total, 2),
         'overtime_hours' => round($ot, 2),
-        'salary'         => $otPay,
+        'salary'         => $otPay, // 只顯示加班費，正常月薪不列入
     ];
 }
 
@@ -633,11 +637,16 @@ function checkNightShift(string $endTime): bool {
 
         <?php if ($empType === 'fulltime'): ?>
         <div class="break-row">
-            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-                <input type="checkbox" name="day[<?php echo $i; ?>][has_break]" value="1"
-                       style="width:16px;height:16px;accent-color:var(--green-700);cursor:pointer"
+            <span>休息：</span>
+            <label>
+                <input type="radio" name="day[<?php echo $i; ?>][has_break]" value="1"
+                       checked onchange="recalcDay(<?php echo $i; ?>)">
+                <span class="break-tag yes">✅ 有休息</span>
+            </label>
+            <label>
+                <input type="radio" name="day[<?php echo $i; ?>][has_break]" value="0"
                        onchange="recalcDay(<?php echo $i; ?>)">
-                <span class="break-tag yes">✅ 有休息（扣1小時）</span>
+                <span class="break-tag no">⚡ 沒休息</span>
             </label>
         </div>
         <?php else: ?>
@@ -675,10 +684,10 @@ function checkNightShift(string $endTime): bool {
         </button>
         <div class="formula-box" id="formula-box-<?php echo $i; ?>">
             <div style="font-weight:bold;color:#2E7D32;margin-bottom:4px">📋 勞基法加班費計算方式</div>
-            <div>月薪 <strong>$<?php echo number_format($wage); ?></strong> ÷ 240 ＝ 時薪 <strong>$<?php echo round($wage/240, 2); ?></strong> 元</div>
-            <div>✅ 正常工時（8h5min內）：$<?php echo round($wage/240, 2); ?> × 時數</div>
-            <div>🔶 加班前2h（×4/3）：$<?php echo round($wage/240 * 4/3, 2); ?> × 時數（無條件進位）</div>
-            <div>🔴 加班第3h起（×5/3）：$<?php echo round($wage/240 * 5/3, 2); ?> × 時數（無條件進位）</div>
+            <div>月薪 <strong>$<?php echo number_format($wage); ?></strong> ÷ 30 ÷ 8 ＝ 時薪 <strong>$<?php echo round($hourlyRate, 2); ?></strong> 元</div>
+            <div>✅ 正常工時（8h內）：$<?php echo round($hourlyRate, 2); ?> × 時數</div>
+            <div>🔶 加班前2h（×4/3）：$<?php echo round($hourlyRate * 4/3, 2); ?> × 時數</div>
+            <div>🔴 加班第3h起（×5/3）：$<?php echo round($hourlyRate * 5/3, 2); ?> × 時數</div>
             <div style="font-weight:bold;color:#555;margin-top:6px">本次計算明細：</div>
             <div class="formula-detail" id="formula-detail-<?php echo $i; ?>">輸入時間後自動顯示</div>
             <div style="color:#888;font-size:0.9em;margin-top:4px">※ 勾選有休息：扣除 1 小時後再計算加班</div>
@@ -758,8 +767,8 @@ function checkNightShift(string $endTime): bool {
 <script>
 const empType        = "<?php echo $empType; ?>";
 const wage           = <?php echo $wage; ?>;
-// 正職：月薪÷240（不中途 round，與勞動部算法一致）；時薪制直接用時薪
-const hourlyRate     = empType === 'fulltime' ? wage / 240 : wage;
+// 正職：月薪換算時薪；時薪制直接用時薪
+const hourlyRate     = empType === 'fulltime' ? Math.round(wage / 30 / 8 * 10000) / 10000 : wage;
 
 function toMin(t) {
     if (!t) return null;
@@ -870,7 +879,7 @@ function recalcDay(i) {
     const g = name => { const el = document.querySelector(`[name="day[${i}][${name}]"]`); return el ? el.value.trim() : ''; };
     let total = diffHours(g('s1_start'), g('s1_end')) + diffHours(g('s2_start'), g('s2_end'));
     let ot = 0, salary = 0;
-    const OT_THRESHOLD = 8 + 5 / 60; // 8h5min
+    const OT_TRIGGER = 8 + 5 / 60; // 8h5min 觸發門檻
 
     if (empType === 'hourly') {
         salary = Math.round(total * hourlyRate);
@@ -881,11 +890,13 @@ function recalcDay(i) {
         const bt = hb ? 1.0 : 0;
         const act = Math.max(total - bt, 0);
         total = act;
-        const ot1 = Math.min(Math.max(act - OT_THRESHOLD, 0), 2);
-        const ot2 = Math.max(act - OT_THRESHOLD - 2, 0);
-        ot = ot1 + ot2;
-        // 加班費無條件進位（與勞動部一致）
-        salary = Math.ceil(ot1 * hourlyRate * 4/3 + ot2 * hourlyRate * 5/3);
+        if (act > OT_TRIGGER) {
+            // 超過門檻：計算基準從 8h 整開始
+            const ot1 = Math.min(act - 8.0, 2);
+            const ot2 = Math.max(act - 10.0, 0);
+            ot = ot1 + ot2;
+            salary = Math.ceil(ot1 * hourlyRate * 4/3 + ot2 * hourlyRate * 5/3);
+        }
     }
 
     // 夜班津貼
@@ -896,25 +907,25 @@ function recalcDay(i) {
     // 更新公式明細
     const detailEl = document.getElementById('formula-detail-' + i);
     if (detailEl && empType === 'fulltime') {
-        const h    = hourlyRate; // wage/240，不 round
-        const h43  = Math.round(h * 4/3 * 100) / 100;
-        const h53  = Math.round(h * 5/3 * 100) / 100;
+        const h   = hourlyRate; // wage/240，不 round
+        const h43 = Math.round(h * 4/3 * 100) / 100;
+        const h53 = Math.round(h * 5/3 * 100) / 100;
         const cbBreak2 = document.querySelector(`[name="day[${i}][has_break]"]`);
         const hb2  = cbBreak2 ? cbBreak2.checked : false;
         const rawH = diffHours(g('s1_start'), g('s1_end')) + diffHours(g('s2_start'), g('s2_end'));
         const brkT = hb2 ? 1.0 : 0;
         const act  = Math.max(rawH - brkT, 0);
-        const ot1h = Math.min(Math.max(act - OT_THRESHOLD, 0), 2);
-        const ot2h = Math.max(act - OT_THRESHOLD - 2, 0);
-        const ot1Pay = Math.ceil(ot1h * h * 4/3);
-        const ot2Pay = Math.ceil(ot2h * h * 5/3);
         let det = '';
         if (brkT > 0) det += `<span style="color:#888">已扣除休息 1h，實際工時 ${Math.round(act*100)/100}h</span><br>`;
-        if (act <= OT_THRESHOLD) {
+        if (act <= OT_TRIGGER) {
             det += `<span style="color:#2E7D32">正常工時 ${Math.round(act*100)/100}h，未超過 8h5min</span><br>`;
             det += `<span style="color:#888">本日屬月薪範圍，無需另計加班費</span>`;
         } else {
-            det += `<span style="color:#888">正常工時 8h5min（月薪範圍，不另計）</span><br>`;
+            const ot1h = Math.min(act - 8.0, 2);
+            const ot2h = Math.max(act - 10.0, 0);
+            const ot1Pay = Math.ceil(ot1h * h * 4/3);
+            const ot2Pay = Math.ceil(ot2h * h * 5/3);
+            det += `<span style="color:#888">正常工時 8h（月薪範圍，不另計）</span><br>`;
             if (ot1h > 0) det += `🔶 加班前2h：${Math.round(ot1h*100)/100}h × $${h43}（×4/3）= <strong style="color:#F57F17">$${ot1Pay}</strong><br>`;
             if (ot2h > 0) det += `🔴 加班第3h起：${Math.round(ot2h*100)/100}h × $${h53}（×5/3）= <strong style="color:#C62828">$${ot2Pay}</strong><br>`;
             det += `<span style="color:#C62828;font-weight:bold">加班費合計：$${ot1Pay + ot2Pay}</span>`;
@@ -946,13 +957,42 @@ function toggleFormula(i) {
 }
 
 function toggleSkip(i, skipped) {
+    // 更新公式明細
+    const detailEl = document.getElementById('formula-detail-' + i);
+    if (detailEl && empType === 'fulltime') {
+        const h    = Math.round(wage / 30 / 8 * 100) / 100;
+        const h134 = Math.round(h * 4/3 * 100) / 100;
+        const h167 = Math.round(h * 5/3 * 100) / 100;
+        const rb2  = document.querySelector(`[name="day[${i}][has_break]"]:checked`);
+        const hb2  = rb2 ? rb2.value === '1' : true;
+        const rawH = diffHours(g('s1_start'), g('s1_end')) + diffHours(g('s2_start'), g('s2_end'));
+        const brkT = (hb2 && rawH >= 8) ? 0.5 : 0;
+        const act  = Math.max(rawH - brkT, 0);
+        const norm = Math.min(act, 8);
+        const ot1h = Math.min(Math.max(act-8,0), 2);
+        const ot2h = Math.max(act-10, 0);
+        const normPay = Math.round(norm * h);
+        const ot1Pay  = Math.round(ot1h * h134);
+        const ot2Pay  = Math.round(ot2h * h167);
+        let det = '';
+        if (brkT > 0) det += `<span style="color:#888">已扣除休息 0.5h，實際工時 ${Math.round(act*100)/100}h</span><br>`;
+        if (act <= 8) {
+            // 未超過8小時：只顯示工時，無加班費
+            det += `<span style="color:#2E7D32">正常工時 ${Math.round(act*100)/100}h，未超過8小時</span><br>`;
+            det += `<span style="color:#888">本日屬月薪範圍，無需另計加班費</span>`;
+        } else {
+            // 超過8小時：顯示加班明細
+            det += `<span style="color:#888">正常工時 8h（月薪範圍，不另計）</span><br>`;
+            if (ot1h > 0) det += `🔶 加班前2h：${Math.round(ot1h*100)/100}h × $${h134}（×4/3）= <strong style="color:#F57F17">$${ot1Pay}</strong><br>`;
+            if (ot2h > 0) det += `🔴 加班第3h起：${Math.round(ot2h*100)/100}h × $${h167}（×5/3）= <strong style="color:#C62828">$${ot2Pay}</strong><br>`;
+            det += `<span style="color:#C62828;font-weight:bold">加班費合計：$${Math.round(ot1Pay+ot2Pay)}</span>`;
+        }
+        detailEl.innerHTML = det;
+    }
+
     const card = document.querySelectorAll('.day-card')[i];
     if (!card) return;
-    card.querySelectorAll('input.time-input, input[type="radio"], input[type="checkbox"]').forEach(el => {
-        // skip checkbox 本身不要 disable
-        if (el.name && el.name.includes('[skip]')) return;
-        el.disabled = skipped;
-    });
+    card.querySelectorAll('input.time-input,input[type="radio"]').forEach(el => el.disabled = skipped);
     card.style.opacity = skipped ? '0.4' : '1';
 }
 document.addEventListener('DOMContentLoaded', () => {
@@ -1041,12 +1081,11 @@ function addManualDay() {
 
     const breakHtml = empType === 'fulltime' ? `
         <div class="break-row">
-            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-                <input type="checkbox" name="day[${i}][has_break]" value="1"
-                       style="width:16px;height:16px;accent-color:var(--green-700);cursor:pointer"
-                       onchange="recalcDay(${i})">
-                <span class="break-tag yes">✅ 有休息（扣1小時）</span>
-            </label>
+            <span>休息：</span>
+            <label><input type="radio" name="day[${i}][has_break]" value="1" checked onchange="recalcDay(${i})">
+                <span class="break-tag yes">✅ 有休息</span></label>
+            <label><input type="radio" name="day[${i}][has_break]" value="0" onchange="recalcDay(${i})">
+                <span class="break-tag no">⚡ 沒休息</span></label>
         </div>` : `<input type="hidden" name="day[${i}][has_break]" value="0">`;
 
     // 建立新卡片 HTML
