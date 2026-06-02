@@ -12,6 +12,7 @@ $preview  = [];
 $imported = 0;
 $skipped  = 0;
 $errors   = [];
+$action   = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
