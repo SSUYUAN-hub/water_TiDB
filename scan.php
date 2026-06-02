@@ -10,7 +10,8 @@ if (file_exists(__DIR__ . '/.env')) {
     $dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
     $dotenv->load();
 }
-$apiKey = $_ENV['GOOGLE_API_KEY'] ?? $_SERVER['GOOGLE_API_KEY'] ?? '';
+$apiKey     = $_ENV['GOOGLE_API_KEY']  ?? $_SERVER['GOOGLE_API_KEY']  ?? '';
+$geminiKey  = $_ENV['GEMINI_API_KEY'] ?? $_SERVER['GEMINI_API_KEY'] ?? $apiKey;
 
 $employeeName   = $_POST['employee_name'] ?? '未命名';
 $empData        = getEmployee($employeeName);
@@ -70,353 +71,155 @@ if ($skipScan && $isSide2) {
 if (!$skipScan && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['card_image'])) {
     try {
         $rawImage  = file_get_contents($_FILES['card_image']['tmp_name']);
+        $mime      = mime_content_type($_FILES['card_image']['tmp_name']);
+        if (!in_array($mime, ['image/jpeg','image/png','image/webp','image/heic','image/heif'])) {
+            $mime = 'image/jpeg';
+        }
         $imageData = base64_encode($rawImage);
 
-        // ── 呼叫 Google Vision API ──────────────────────
+        // ══════════════════════════════════════════════════════
+        //  呼叫 Gemini 2.0 Flash API
+        //  讓 AI 直接理解卡片欄位語意，不再靠座標切欄
+        // ══════════════════════════════════════════════════════
+        $prompt = <<<'PROMPT'
+你是一個專業的打卡紀錄辨識助手。這是一張台灣工廠/餐飲業常用的「萬年牌電腦打鐘卡」月份出勤卡片。
+
+卡片欄位說明（由左到右）：
+- 日期（1~31）
+- 結束（加班下班，第二段下班時間）
+- 加班（加班上班，第二段上班時間）
+- 下班（第一段下班時間）
+- 上班（第一段上班時間）
+- 備註（忽略）
+
+請依照以下規則辨識：
+1. 逐行掃描，從日期 1 號到最後一個有記錄的日期
+2. 只列出「有打卡記錄」的日期，完全空白的日期請跳過
+3. 時間格式統一轉為 HH:MM（24小時制，例如 02:00、17:52）
+4. 手寫時間常見的 OCR 錯誤：0 被寫成 O/D/Q，1 被寫成 l/I，請自行修正
+5. 若某欄確實空白，該欄填空字串 ""
+6. 卡片上方會有民國年份和月份（例如「115年4月」），請一併辨識
+7. 打卡機印出的時間通常是淡色油墨，手寫加班時間通常是深色原子筆，兩者都要辨識
+
+請嚴格只回傳以下 JSON 格式，不要加任何說明文字或 markdown：
+{
+  "year_month": "2026-04",
+  "days": [
+    {"date": 1, "s1_start": "17:52", "s1_end": "", "s2_start": "", "s2_end": ""},
+    {"date": 3, "s1_start": "14:58", "s1_end": "22:03", "s2_start": "", "s2_end": ""},
+    {"date": 4, "s1_start": "17:54", "s1_end": "", "s2_start": "", "s2_end": "02:00"}
+  ]
+}
+
+注意：year_month 請用西元年（民國年 +1911）。
+PROMPT;
+
         $payload = json_encode([
-            "requests" => [[
-                "image"    => ["content" => $imageData],
-                "features" => [["type" => "DOCUMENT_TEXT_DETECTION"]] // 比 TEXT_DETECTION 更準確
-            ]]
+            'contents' => [[
+                'parts' => [
+                    ['text' => $prompt],
+                    ['inline_data' => [
+                        'mime_type' => $mime,
+                        'data'      => $imageData,
+                    ]],
+                ],
+            ]],
+            'generationConfig' => [
+                'responseMimeType' => 'application/json',
+                'temperature'      => 0,
+            ],
         ]);
 
-        $url = "https://vision.googleapis.com/v1/images:annotate?key=" . $apiKey;
-        $ch  = curl_init($url);
+        $model = 'gemini-2.0-flash';
+        $url   = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$geminiKey}";
+
+        $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
         $response = curl_exec($ch);
+        $curlErr  = curl_error($ch);
         curl_close($ch);
+
+        if ($curlErr) throw new Exception('網路錯誤：' . $curlErr);
 
         $result = json_decode($response, true);
 
+        // 檢查 API 錯誤
         if (isset($result['error'])) {
-            throw new Exception('Vision API 錯誤：' . $result['error']['message']);
+            throw new Exception('Gemini API 錯誤：' . ($result['error']['message'] ?? '未知錯誤'));
         }
 
-        // ── 取得所有文字區塊及其座標 ────────────────────
-        $annotations = $result['responses'][0]['textAnnotations'] ?? [];
+        // 取出 Gemini 回傳的 JSON 文字
+        $rawText = $result['candidates'][0]['content']['parts'][0]['text'] ?? '';
+        if (empty($rawText)) {
+            throw new Exception('Gemini 未回傳任何內容，請確認 API Key 是否正確');
+        }
 
-        if (count($annotations) < 2) {
-            $errorMsg = 'Google Vision 無法辨識圖片文字，請確認圖片清晰度';
-        } else {
-            // 第一個 annotation 是整體文字，跳過
-            // 從第二個開始，每個是單一文字區塊
-            $tokens = [];
-            foreach (array_slice($annotations, 1) as $ann) {
-                $text = trim($ann['description'] ?? '');
-                if (empty($text)) continue;
+        // 清除可能殘留的 markdown 包裹（防禦性處理）
+        $rawText = preg_replace('/^```(?:json)?\s*/i', '', trim($rawText));
+        $rawText = preg_replace('/\s*```$/', '', $rawText);
 
-                // 取得邊界框的中心 X 座標（用來判斷欄位）
-                $vertices = $ann['boundingPoly']['vertices'] ?? [];
-                if (count($vertices) < 2) continue;
+        $geminiData = json_decode($rawText, true);
+        if (json_last_error() !== JSON_ERROR_NONE || !isset($geminiData['days'])) {
+            throw new Exception('Gemini 回傳格式錯誤：' . $rawText);
+        }
 
-                $xCoords = array_column($vertices, 'x');
-                $yCoords = array_column($vertices, 'y');
-                $centerX = (min($xCoords) + max($xCoords)) / 2;
-                $centerY = (min($yCoords) + max($yCoords)) / 2;
+        // ── 解析年月 ──────────────────────────────────────
+        $prefillYM = $_POST['prefill_yearmonth'] ?? '';
+        if (!empty($prefillYM)) {
+            $yearMonth = $prefillYM; // 第二面：強制沿用第一面確認的年月
+        } elseif (!empty($geminiData['year_month'])) {
+            $yearMonth = $geminiData['year_month']; // 採用 Gemini 辨識結果
+        }
+        // else: 維持預設 date('Y-m')
 
-                $tokens[] = [
-                    'text'    => $text,
-                    'x'       => $centerX,
-                    'y'       => $centerY,
-                    'x_min'   => min($xCoords),
-                    'x_max'   => max($xCoords),
-                ];
+        // ── 解析每日出勤 ───────────────────────────────────
+        foreach ($geminiData['days'] as $day) {
+            $dateNum  = (int)($day['date'] ?? 0);
+            if ($dateNum < 1 || $dateNum > 31) continue;
+
+            $s1_start = normalizeTime($day['s1_start'] ?? '');
+            $s1_end   = normalizeTime($day['s1_end']   ?? '');
+            $s2_start = normalizeTime($day['s2_start'] ?? '');
+            $s2_end   = normalizeTime($day['s2_end']   ?? '');
+
+            // 替補規則：s1_end 空白 且 s2_end 有值 且 s2_start 也空白 → 遞補
+            if (!$s1_end && $s2_end && !$s2_start) {
+                $s1_end = $s2_end;
+                $s2_end = '';
             }
 
-            if (empty($tokens)) {
-                throw new Exception('無法取得文字座標資訊');
-            }
+            // 至少要有一個時間才列入
+            if (!$s1_start && !$s1_end && !$s2_start && !$s2_end) continue;
 
-            // ── 判斷圖片寬度，計算各欄位的 X 範圍 ────────
-            $allX    = array_column($tokens, 'x');
-            $imgMinX = min($allX);
-            $imgMaxX = max($allX);
-            $imgWidth = $imgMaxX - $imgMinX;
+            // 驗證日期合法性（checkdate）
+            $ymParts = explode('-', $yearMonth);
+            if (count($ymParts) === 2 && !checkdate((int)$ymParts[1], $dateNum, (int)$ymParts[0])) continue;
 
-            // ══════════════════════════════════════════════
-            // 卡片欄位由左到右（依顏色區分）：
-            //  🔴 日期     │⚫ 結束(第二段下班)│🟣 加班(第二段上班)│🟢 下班(第一段下班)│🔵 上班(第一段上班)│備註
-            //   0%~15%    │  15%~33%          │  33%~52%           │  52%~72%           │  72%~92%           │92%+
-            // ══════════════════════════════════════════════
-            // 依偵錯座標校正欄位比例：
-            // 日期  relX~0.025  結束  relX~0.208  加班  relX~0.39
-            // 下班  relX~0.572  上班  relX~0.794  備註  relX~0.94+
-            $colBounds = [
-                'date'    => [0.00, 0.12], // 🔴 日期
-                's2_end'  => [0.12, 0.32], // ⚫ 結束（第二段下班）
-                's2_start'=> [0.32, 0.50], // 🟣 加班上班（第二段上班）
-                's1_end'  => [0.50, 0.70], // 🟢 下班（第一段下班）
-                's1_start'=> [0.70, 0.92], // 🔵 上班（第一段上班）
-                // 0.92+ = 備註欄，忽略
+            $preview = previewCalc($s1_start, $s1_end, $s2_start, $s2_end, $wage, $empType);
+            $lastEnd = $s2_end ?: $s1_end;
+            $isNight = ($nightAllowance > 0) && checkNightShift($lastEnd);
+
+            $parsedDays[] = [
+                'date'         => $dateNum,
+                'shift1_start' => $s1_start,
+                'shift1_end'   => $s1_end,
+                'shift2_start' => $s2_start,
+                'shift2_end'   => $s2_end,
+                'preview'      => $preview,
+                'is_night'     => $isNight,
             ];
+        }
 
-            // 將每個 token 分配到對應欄位
-            $classified = [];
-            foreach ($tokens as $tok) {
-                $relX = ($tok['x'] - $imgMinX) / $imgWidth;
+        // 依日期排序
+        usort($parsedDays, fn($a, $b) => $a['date'] <=> $b['date']);
 
-                $col    = null;
-                // 匹配帶冒號時間 12:34 或純數字4位 0200 或3位 200
-                // 先做 OCR 錯誤替換再判斷，避免 O200/D200 等被排除
-                // 用與 normalizeTime 完全一致的替換表做預判，避免 D200/O200 被排除
-                $textForCheck = strtr($tok['text'], [
-                    'O'=>'0','o'=>'0','Q'=>'0','D'=>'0','q'=>'0',
-                    'l'=>'1','I'=>'1','i'=>'1','|'=>'1',
-                    'S'=>'5','s'=>'5',
-                    'B'=>'8','b'=>'6',
-                    'Z'=>'2','z'=>'2',
-                    'G'=>'6','g'=>'9',
-                    '?'=>'0',
-                ]);
-                $textForCheck = preg_replace('/[.\-]/', ':', $textForCheck);
-                $textForCheck = preg_replace('/[^0-9:]/', '', $textForCheck);
-                $isTime = preg_match('/^\d{1,2}:\d{2}$/', $textForCheck)
-                       || preg_match('/^\d{3,4}$/', $textForCheck);
-                $isDate = preg_match('/^\d{1,2}$/', $tok['text'])
-                          && (int)$tok['text'] >= 1
-                          && (int)$tok['text'] <= 31;
-
-                foreach ($colBounds as $colName => [$minRel, $maxRel]) {
-                    if ($relX >= $minRel && $relX < $maxRel) {
-                        $col = $colName;
-                        break;
-                    }
-                }
-
-                if ($col) {
-                    $classified[] = array_merge($tok, [
-                        'col'     => $col,
-                        'is_time' => $isTime,
-                        'is_date' => $isDate,
-                    ]);
-                }
-            }
-
-            // ── 依 Y 座標分組（同一行的 token 歸為同一天）──
-            // 先找出所有日期 token，以其 Y 座標為基準
-            $dateTokens = array_filter($classified, fn($t) => $t['col'] === 'date' && $t['is_date']);
-            usort($dateTokens, fn($a, $b) => $a['y'] <=> $b['y']);
-
-            // ══════════════════════════════════════════════════
-            // 找年月：用座標位置直接抓，不依賴「年」「月」文字
-            // OCR 常把「年」讀成「#」「$」，「月」讀成「A」「月」等
-            // 策略：在圖片上方 25% 區域，依 X 座標位置找民國年和月份
-            // 卡片年份在右半部（relX > 0.5），月份在更右側（relX > 0.8）
-            // ══════════════════════════════════════════════════
-            $fullText = $result['responses'][0]['textAnnotations'][0]['description'] ?? '';
-            $yearMonth = date('Y-m'); // 預設當月
-
-            // 取圖片 Y 和 X 範圍
-            $allY    = array_column($tokens, 'y');
-            $allX2   = array_column($tokens, 'x');
-            $imgMinY = min($allY);
-            $imgMaxY = max($allY);
-            $imgMinX2 = min($allX2);
-            $imgMaxX2 = max($allX2);
-            $imgH    = max($imgMaxY - $imgMinY, 1);
-            $imgW2   = max($imgMaxX2 - $imgMinX2, 1);
-
-            // 只取圖片上方 25% 的 token
-            $topYcutoff = $imgMinY + $imgH * 0.25;
-            $topTokens2 = array_filter($tokens, fn($t) => $t['y'] <= $topYcutoff);
-
-            // 策略一：直接從座標找年（民國3位數）和月（1-2位數）
-            // 年份 token：上方區域、relX 約 0.55~0.80、純數字 100-199
-            // 月份 token：上方區域、relX 約 0.80~0.99、純數字 1-12
-            $candidateYear  = null;
-            $candidateMonth = null;
-            $yearX = 0;
-
-            // ── 策略：利用「年」字 token 精確定位月份 ──────────
-            // 步驟 1：找到「年」字 token（通常不會被 OCR 誤讀）
-            $yearCharX  = null; // 「年」字的 X 座標
-            $yearCharY  = null;
-            $monthCharX = null; // 「月」字的 X 座標（如果找到）
-            $yearTokenY = 0;
-
-            foreach ($topTokens2 as $tok) {
-                $text = $tok['text'];
-                $cx   = $tok['x'];
-                $cy   = $tok['y'];
-                if ($text === '年') { $yearCharX = $cx; $yearCharY = $cy; }
-                if ($text === '月') { $monthCharX = $cx; }
-            }
-
-            // 步驟 2：在「年」字右側找民國年數字（通常在「年」左側，但偶爾順序不同）
-            foreach ($topTokens2 as $tok) {
-                $cx      = $tok['x'];
-                $cy      = $tok['y'];
-                $relX    = ($cx - $imgMinX2) / $imgW2;
-                $cleaned = strtr($tok['text'], ['l'=>'1','O'=>'0','I'=>'1','o'=>'0','S'=>'5','B'=>'8']);
-
-                if (preg_match('/^([1][0-9]{2})$/', $cleaned, $m)) {
-                    $y = (int)$m[1];
-                    if ($y >= 100 && $y <= 199 && $relX >= 0.40 && $relX <= 0.88) {
-                        $candidateYear = $y;
-                        $yearX         = $relX;
-                        $yearTokenY    = $cy;
-                    }
-                }
-            }
-
-            // 步驟 3：找月份
-            // 方法 A：若找到「年」字，月份必須在「年」字右側（X > yearCharX）
-            //         且若找到「月」字，月份在「月」字左側
-            // 方法 B：若無「年」字，用 Y 座標約束
-            if ($candidateYear !== null) {
-                $yTolerance = $imgH * 0.05;
-                $bestMonthScore = -1;
-
-                foreach ($topTokens2 as $tok) {
-                    $cx       = $tok['x'];
-                    $cy       = $tok['y'];
-                    $relX     = ($cx - $imgMinX2) / $imgW2;
-                    $origText = $tok['text'];
-                    $cleaned  = strtr($origText, ['l'=>'1','O'=>'0','I'=>'1','o'=>'0','S'=>'5','B'=>'8']);
-
-                    if (!preg_match('/^([0-9]{1,2})$/', $cleaned, $m)) continue;
-                    $mo = (int)$m[1];
-                    if ($mo < 1 || $mo > 12) continue;
-
-                    // 基本條件：在年份右側且同一行
-                    if (!($relX > $yearX && ($relX - $yearX) <= 0.40
-                          && abs($cy - $yearTokenY) <= $yTolerance)) continue;
-
-                    // 計算分數
-                    $score = 0;
-
-                    // A. 如果找到「年」字，月份必須在「年」字右側
-                    if ($yearCharX !== null) {
-                        if ($cx <= $yearCharX) continue; // 在「年」左側，排除
-                        $score += 20; // 有「年」字定位，加高分
-                    }
-
-                    // B. 如果找到「月」字，月份必須在「月」字左側
-                    if ($monthCharX !== null && $cx >= $monthCharX) continue;
-
-                    // C. 原始字元長度：1位數優先（單個「4」比「11」更可能是月份）
-                    $score += (strlen($origText) === 1) ? 10 : 3;
-
-                    // D. 離「年」字越近越優先
-                    if ($yearCharX !== null) {
-                        $distFromYear = $cx - $yearCharX;
-                        $score += (int)(5 * max(0, 1 - $distFromYear / 200));
-                    }
-
-                    if ($score > $bestMonthScore) {
-                        $candidateMonth = $mo;
-                        $bestMonthScore = $score;
-                    }
-                }
-            }
-
-            // ── 年月決策 ──────────────────────────────────────
-            // OCR 結果先存入 $ocrYearMonth，再決定是否採用
-            $ocrYearMonth = null;
-            if ($candidateYear !== null && $candidateMonth !== null) {
-                $ocrYearMonth = ($candidateYear + 1911) . '-' . str_pad($candidateMonth, 2, '0', STR_PAD_LEFT);
-            } else {
-                // 策略二：文字比對（支援「年」被誤讀的情況）
-                $topTexts2 = array_map(fn($t) => $t['text'], $topTokens2);
-                $topStr    = implode(' ', $topTexts2);
-                $topClean  = strtr($topStr, ['l'=>'1','O'=>'0','I'=>'1','o'=>'0','A'=>'月','#'=>'年','$'=>'年','&'=>'年']);
-
-                // 民國年月格式（含誤讀版本）
-                if (preg_match('/([1][0-9]{2})\\s*[年#\\$&]\\s*([0-9]{1,2})\\s*[月A]/', $topClean, $m)) {
-                    $y=(int)$m[1]; $mo=(int)$m[2];
-                    if ($y>=100&&$y<=199&&$mo>=1&&$mo<=12)
-                        $ocrYearMonth = ($y+1911).'-'.str_pad($mo,2,'0',STR_PAD_LEFT);
-                }
-                // 純數字格式「115 4」（年後面緊接月）
-                elseif (preg_match('/([1][0-9]{2})\\s+([1-9]|1[0-2])(?:\\s|$)/', $topClean, $m)) {
-                    $y=(int)$m[1]; $mo=(int)$m[2];
-                    if ($y>=100&&$y<=199&&$mo>=1&&$mo<=12)
-                        $ocrYearMonth = ($y+1911).'-'.str_pad($mo,2,'0',STR_PAD_LEFT);
-                }
-            }
-
-            // 第二面掃描時（prefill_yearmonth 有值）→ 鎖定第一面年月，不被 OCR 覆蓋
-            // 第一面掃描 → 用 OCR 結果，沒辨識到則維持預設 date('Y-m')
-            $prefillYM = $_POST['prefill_yearmonth'] ?? '';
-            if (!empty($prefillYM)) {
-                $yearMonth = $prefillYM; // 第二面：強制沿用第一面確認的年月
-            } elseif ($ocrYearMonth !== null) {
-                $yearMonth = $ocrYearMonth; // 第一面：採用 OCR 辨識結果
-            }
-            // else: 維持 $yearMonth = date('Y-m') 預設值
-
-            // ── 對每個日期，尋找同行的時間 token ──────────
-            // 用相鄰日期 token 的平均間距算出行高，取 45% 作容忍（防止串位）
-            $dateTokensArr = array_values($dateTokens);
-            if (count($dateTokensArr) >= 2) {
-                $yDiffs = [];
-                for ($di = 1; $di < count($dateTokensArr); $di++) {
-                    $diff = $dateTokensArr[$di]['y'] - $dateTokensArr[$di-1]['y'];
-                    if ($diff > 0) $yDiffs[] = $diff;
-                }
-                $avgRowHeight = !empty($yDiffs) ? array_sum($yDiffs) / count($yDiffs) : ($imgH * 0.05);
-                $rowTolerance = $avgRowHeight * 0.45;
-            } else {
-                $rowTolerance = $imgH * 0.025;
-            }
-
-            foreach ($dateTokens as $dateTok) {
-                $dateNum = (int)$dateTok['text'];
-                $dateY   = $dateTok['y'];
-
-                // 找同行的時間 token
-                $rowTokens = array_filter($classified, function($t) use ($dateY, $rowTolerance) {
-                    return abs($t['y'] - $dateY) <= $rowTolerance && $t['is_time'];
-                });
-
-                // 依欄位整理
-                $s1_start = $s1_end = $s2_start = $s2_end = '';
-                foreach ($rowTokens as $rt) {
-                    $timeStr = normalizeTime($rt['text']);
-                    switch ($rt['col']) {
-                        case 's1_start': $s1_start = $timeStr; break;
-                        case 's1_end':   $s1_end   = $timeStr; break;
-                        case 's2_start': $s2_start = $timeStr; break;
-                        case 's2_end':   $s2_end   = $timeStr; break;
-                    }
-                }
-
-                // ── 替補規則：第一段下班空白 → 用第二段下班遞補 ──
-                // 條件：s1_end 空白 且 s2_end 有值 且 s2_start 也空白
-                // （若 s2_start 有值代表真正的兩段班，不遞補）
-                if (!$s1_end && $s2_end && !$s2_start) {
-                    $s1_end = $s2_end;
-                    $s2_end = '';
-                }
-
-                // 至少要有一個時間才列入
-                if (!$s1_start && !$s1_end && !$s2_start && !$s2_end) continue;
-
-                $preview  = previewCalc($s1_start, $s1_end, $s2_start, $s2_end, $wage, $empType);
-                $lastEnd  = $s2_end ?: $s1_end;
-                $isNight  = ($nightAllowance > 0) && checkNightShift($lastEnd);
-
-                $parsedDays[] = [
-                    'date'         => $dateNum,
-                    'shift1_start' => $s1_start,
-                    'shift1_end'   => $s1_end,
-                    'shift2_start' => $s2_start,
-                    'shift2_end'   => $s2_end,
-                    'preview'      => $preview,
-                    'is_night'     => $isNight,
-                ];
-            }
-
-            // 依日期排序
-            usort($parsedDays, fn($a, $b) => $a['date'] <=> $b['date']);
-
-            if (empty($parsedDays)) {
-                $errorMsg = '辨識到文字但無法解析出出勤記錄，請確認圖片角度是否正確，或使用手動輸入';
-            }
+        if (empty($parsedDays)) {
+            $errorMsg = 'Gemini 辨識完成但找不到出勤記錄，請確認圖片是否清晰或嘗試重新上傳';
         }
 
     } catch (Exception $e) {
