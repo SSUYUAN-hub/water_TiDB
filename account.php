@@ -8,23 +8,7 @@ $message = '';
 $msgType = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $action  = $_POST['action'] ?? '';
-    $curUser = currentUser();
-    $isSysAdminPost = isSysAdmin();
-
-    // ── 通用安全攔截：非系統管理帳號不得操作 role=admin 的帳號 ──
-    if (!$isSysAdminPost && in_array($action, ['rename_user','reset_password','delete_user'])) {
-        $targetId = (int)($_POST['u_id'] ?? 0);
-        if ($targetId > 0) {
-            $chk = getDB()->prepare('SELECT role FROM users WHERE id = ? LIMIT 1');
-            $chk->execute([$targetId]);
-            $targetRole = $chk->fetchColumn();
-            if ($targetRole === 'admin') {
-                $message = '⛔ 無權限操作系統管理帳號'; $msgType = 'error';
-                goto render_page;
-            }
-        }
-    }
+    $action = $_POST['action'] ?? '';
 
     // 新增帳號
     if ($action === 'add_user') {
@@ -33,10 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $urole    = $_POST['u_role']               ?? 'staff';
         $uempname = trim($_POST['u_employee_name'] ?? '');
 
-        // 非系統管理不得新增 admin 角色
-        if ($urole === 'admin' && !$isSysAdminPost) {
-            $message = '⛔ 無權限新增系統管理帳號'; $msgType = 'error';
-        } elseif (empty($uname) || strlen($upass) < 6) {
+        if (empty($uname) || strlen($upass) < 6) {
             $message = '帳號不能空白，且密碼至少 6 個字元'; $msgType = 'error';
         } else {
             try {
@@ -49,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ':username' => $uname,
                     ':hash'     => $hashedPass,
                     ':role'     => $urole,
-                    ':emp'      => ($urole === 'staff' && $uempname !== '') ? $uempname : null, // admin/goddess_plus 不綁定員工
+                    ':emp'      => ($urole === 'staff' && $uempname !== '') ? $uempname : null,
                 ]);
                 $message = "✅ 帳號「{$uname}」已建立"; $msgType = 'success';
             } catch (PDOException $e) {
@@ -109,23 +90,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-render_page:
-$employees  = getEmployees();
-$curUser    = currentUser();
-$isSysAdmin = isSysAdmin(); // role === 'admin'
-
-// 系統管理帳號可看全部；女神Plus/員工看不到 role='admin' 的帳號
-if ($isSysAdmin) {
-    $allUsers = getDB()->query(
-        'SELECT id, username, role, employee_name, created_at FROM users ORDER BY id'
-    )->fetchAll();
-} else {
-    $stmt = getDB()->prepare(
-        "SELECT id, username, role, employee_name, created_at FROM users WHERE role != 'admin' ORDER BY id"
-    );
-    $stmt->execute();
-    $allUsers = $stmt->fetchAll();
-}
+$employees = getEmployees();
+$allUsers  = getDB()->query(
+    'SELECT id, username, role, employee_name, created_at FROM users ORDER BY id'
+)->fetchAll();
+$curUser = currentUser();
 ?>
 <!DOCTYPE html>
 <html lang="zh-TW">
@@ -182,7 +151,7 @@ if ($isSysAdmin) {
     </button>
     <nav class="topbar-nav" id="topbar-nav">
       <span class="topbar-link" style="background:rgba(255,255,255,0.1);cursor:default">
-        👑 <?php echo htmlspecialchars($curUser['username'] ?? ''); ?>
+        <?php echo roleLabel(); ?> <?php echo htmlspecialchars($curUser['username'] ?? ''); ?>
       </span>
       <a href="index.php" class="topbar-link">🏠 首頁</a>
       <a href="logout.php" class="topbar-link">登出</a>
@@ -215,10 +184,7 @@ if ($isSysAdmin) {
         <div class="fg">
           <label>角色</label>
           <select name="u_role" id="u-role-sel" onchange="toggleEmpSelect()">
-            <?php if ($isSysAdmin): ?>
-            <option value="admin">👑 系統管理</option>
-            <?php endif; ?>
-            <option value="goddess_plus">✨ 女神Plus</option>
+            <option value="admin">👑 管理員</option>
             <option value="staff" selected>👤 員工</option>
           </select>
         </div>
@@ -275,9 +241,7 @@ if ($isSysAdmin) {
       </thead>
       <tbody>
       <?php foreach ($allUsers as $u):
-        $isSelf        = (int)$u['id'] === (int)($curUser['id'] ?? 0);
-        $isTargetAdmin = ($u['role'] === 'admin');      // 此列是系統管理帳號
-        $locked        = $isTargetAdmin && !$isSysAdmin; // 非系統管理者看到此列時鎖定
+        $isSelf = (int)$u['id'] === (int)($curUser['id'] ?? 0);
       ?>
       <tr class="user-row"
           data-username="<?php echo strtolower(htmlspecialchars($u['username'])); ?>"
@@ -289,12 +253,8 @@ if ($isSysAdmin) {
           <?php endif; ?>
         </td>
         <td>
-          <span class="badge badge-<?php echo $u['role']==='admin'?'fulltime':($u['role']==='goddess_plus'?'fulltime':'hourly'); ?>">
-            <?php
-              if ($u['role'] === 'admin') echo '👑 系統管理';
-              elseif ($u['role'] === 'goddess_plus') echo '✨ 女神Plus';
-              else echo '👤 員工';
-            ?>
+          <span class="badge badge-<?php echo $u['role']==='admin'?'fulltime':'hourly'; ?>">
+            <?php echo $u['role']==='admin'?'👑 管理員':'👤 員工'; ?>
           </span>
         </td>
         <td style="color:var(--grey-<?php echo $u['employee_name']?'900':'300'; ?>)">
@@ -304,9 +264,6 @@ if ($isSysAdmin) {
           <?php echo $u['created_at']; ?>
         </td>
         <td>
-          <?php if ($locked): ?>
-          <span style="font-size:0.8em;color:var(--grey-300)">🔒 無權限</span>
-          <?php else: ?>
           <form method="post" class="inline-form">
             <input type="hidden" name="action" value="rename_user">
             <input type="hidden" name="u_id"   value="<?php echo $u['id']; ?>">
@@ -315,12 +272,8 @@ if ($isSysAdmin) {
                    required autocomplete="off">
             <button type="submit" class="btn btn-ghost btn-sm">✏️ 修改</button>
           </form>
-          <?php endif; ?>
         </td>
         <td>
-          <?php if ($locked): ?>
-          <span style="font-size:0.8em;color:var(--grey-300)">🔒 無權限</span>
-          <?php else: ?>
           <form method="post" class="inline-form">
             <input type="hidden" name="action"     value="reset_password">
             <input type="hidden" name="u_id"       value="<?php echo $u['id']; ?>">
@@ -329,13 +282,10 @@ if ($isSysAdmin) {
                    placeholder="新密碼" minlength="6" required autocomplete="new-password">
             <button type="submit" class="btn btn-ghost btn-sm">🔑 修改</button>
           </form>
-          <?php endif; ?>
         </td>
         <td>
           <?php if ($isSelf): ?>
           <span style="font-size:0.8em;color:var(--grey-300)">無法刪除</span>
-          <?php elseif ($locked): ?>
-          <span style="font-size:0.8em;color:var(--grey-300)">🔒 無權限</span>
           <?php else: ?>
           <form method="post" style="margin:0"
                 onsubmit="return confirm('確定刪除帳號「<?php echo htmlspecialchars($u['username']); ?>」？')">

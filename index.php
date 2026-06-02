@@ -213,7 +213,7 @@ $isAdmin = isAdmin();
     </button>
     <nav class="topbar-nav" id="topbar-nav">
       <span class="user-chip">
-        <?php echo $isAdmin ? '👑' : '👤'; ?>
+        <?php echo roleLabel(); ?>
         <?php echo htmlspecialchars($user['username']); ?>
       </span>
       <a href="logout.php" class="topbar-link">登出</a>
@@ -227,10 +227,10 @@ $isAdmin = isAdmin();
   <div class="welcome-card">
     <div class="welcome-greeting">歡迎回來</div>
     <div class="welcome-name">
-      <?php echo $isAdmin ? '👑' : '👤'; ?>
+      <?php echo roleIcon(); ?>
       <?php echo htmlspecialchars($user['username']); ?>
       <span class="welcome-role">
-        <?php echo $isAdmin ? '管理員' : '員工'; ?>
+        <?php echo roleLabel(); ?>
       </span>
     </div>
     <div class="welcome-time" id="welcome-time">載入中...</div>

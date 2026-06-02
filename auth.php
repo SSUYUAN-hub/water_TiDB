@@ -18,7 +18,7 @@ function isLoggedIn(): bool {
     return isset($_SESSION['user']);
 }
 
-// ── 是否為系統管理員（admin）────────────────────────
+// ── 是否為系統管理員（role = admin）─────────────────
 function isSysAdmin(): bool {
     return ($_SESSION['user']['role'] ?? '') === 'admin';
 }
@@ -37,6 +37,26 @@ function isAdmin(): bool {
 // ── 是否為員工 ────────────────────────────────────────
 function isStaff(): bool {
     return ($_SESSION['user']['role'] ?? '') === 'staff';
+}
+
+// ── 角色顯示名稱（含 emoji）──────────────────────────
+function roleLabel(?string $role = null): string {
+    $r = $role ?? ($_SESSION['user']['role'] ?? '');
+    return match($r) {
+        'admin'        => '👑 系統管理',
+        'goddess_plus' => '✨ 女神Plus',
+        default        => '👤 員工',
+    };
+}
+
+// ── 角色 emoji（僅圖示）──────────────────────────────
+function roleIcon(?string $role = null): string {
+    $r = $role ?? ($_SESSION['user']['role'] ?? '');
+    return match($r) {
+        'admin'        => '👑',
+        'goddess_plus' => '✨',
+        default        => '👤',
+    };
 }
 
 // ── 強制登入（未登入則導向 login.php）────────────────
