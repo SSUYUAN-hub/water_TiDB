@@ -11,20 +11,23 @@ function monthlyToHourly(int $monthlySalary): float {
 }
 
 // =============================================
-// 正職員工：超過 8 小時才計算加班費（依勞基法）
-// $hourlyRate 已是換算後的時薪
+// 正職員工：超過 8h5min 才計算加班費（依勞基法）
+// $monthlySalary 月薪（整數），內部不 round 時薪，確保與勞動部系統一致
 // =============================================
-function calculateSalaryFulltime($startTime, $endTime, float $hourlyRate, bool $hasBreak = false): array {
+function calculateSalaryFulltime($startTime, $endTime, int $monthlySalary, bool $hasBreak = false): array {
     $start    = new DateTime($startTime);
     $end      = new DateTime($endTime);
     if ($end < $start) $end->modify('+1 day'); // 跨夜處理
 
-    $interval = $start->diff($end);
+    $interval   = $start->diff($end);
     $totalHours = $interval->h + ($interval->i / 60) + ($interval->days * 24);
 
     // 有勾選休息：扣除 1 小時後再計算
     $breakTime       = $hasBreak ? 1.0 : 0;
     $actualWorkHours = max($totalHours - $breakTime, 0);
+
+    // 時薪：月薪 ÷ 240，不中途 round（與勞動部算法一致）
+    $hourlyRate = $monthlySalary / 240;
 
     // 加班費計算（依勞基法，超過 8h5min 才算加班）
     $OT_THRESHOLD = 8 + 5 / 60;
@@ -46,16 +49,17 @@ function calculateSalaryFulltime($startTime, $endTime, float $hourlyRate, bool $
     }
 
     $overtimeHours = $overtime1 + $overtime2;
-    $overtimePay   = ($overtime1 * $hourlyRate * 4/3) + ($overtime2 * $hourlyRate * 5/3);
+    // 加班費無條件進位（與勞動部系統一致）
+    $overtimePay   = (int)ceil(($overtime1 * $hourlyRate * 4/3) + ($overtime2 * $hourlyRate * 5/3));
     $salary        = ($normalHours * $hourlyRate) + $overtimePay;
 
     return [
         'total_hours'    => round($actualWorkHours, 2),
         'normal_hours'   => round($normalHours,     2),
         'overtime_hours' => round($overtimeHours,   2),
-        'overtime_pay'   => (int)round($overtimePay),
+        'overtime_pay'   => $overtimePay,
         'salary'         => (int)round($salary),
-        'hourly_rate'    => round($hourlyRate, 4),
+        'hourly_rate'    => round($hourlyRate, 2),
         'has_break'      => $hasBreak,
         'type'           => 'fulltime',
     ];
@@ -94,8 +98,8 @@ function calculateSalary($startTime, $endTime, $wage, string $empType = 'fulltim
     if ($empType === 'hourly') {
         return calculateSalaryHourly($startTime, $endTime, (int)$wage);
     }
-    $hourlyRate = monthlyToHourly((int)$wage);
-    return calculateSalaryFulltime($startTime, $endTime, $hourlyRate, $hasBreak);
+    // 正職：直接傳月薪，calculateSalaryFulltime 內部自行計算時薪（不中途 round）
+    return calculateSalaryFulltime($startTime, $endTime, (int)$wage, $hasBreak);
 }
 
 // =============================================
@@ -112,16 +116,16 @@ function fmtTime(string $t): string {
 // 正職加班費核算公式說明（供 UI 顯示）
 // =============================================
 function getOvertimeFormula(int $monthlySalary): array {
-    $h = monthlyToHourly($monthlySalary);
+    $h = $monthlySalary / 240; // 不 round，與計算一致
     return [
         'hourly_rate'    => round($h, 2),
         'ot1_rate'       => round($h * 4/3, 2),
         'ot2_rate'       => round($h * 5/3, 2),
         'formula_text'   => sprintf(
-            "月薪 %s ÷ 30 ÷ 8 = 時薪 %s 元\n" .
+            "月薪 %s ÷ 240 = 時薪 %s 元\n" .
             "正常工時（8h5min內）：%s × 時數\n" .
-            "加班前2小時（×4/3≈1.3333）：%s × 時數\n" .
-            "加班第3小時起（×5/3≈1.6667）：%s × 時數\n" .
+            "加班前2小時（×4/3）：%s × 時數（無條件進位）\n" .
+            "加班第3小時起（×5/3）：%s × 時數（無條件進位）\n" .
             "※ 勾選休息：扣除 1 小時後再計算",
             number_format($monthlySalary),
             round($h, 2),
