@@ -18,9 +18,20 @@ function isLoggedIn(): bool {
     return isset($_SESSION['user']);
 }
 
-// ── 是否為管理員 ──────────────────────────────────────
-function isAdmin(): bool {
+// ── 是否為系統管理員（admin）────────────────────────
+function isSysAdmin(): bool {
     return ($_SESSION['user']['role'] ?? '') === 'admin';
+}
+
+// ── 是否為女神Plus ────────────────────────────────────
+function isGoddessPlus(): bool {
+    return ($_SESSION['user']['role'] ?? '') === 'goddess_plus';
+}
+
+// ── 是否具有管理員權限（admin 或 goddess_plus）──────
+function isAdmin(): bool {
+    $role = $_SESSION['user']['role'] ?? '';
+    return $role === 'admin' || $role === 'goddess_plus';
 }
 
 // ── 是否為員工 ────────────────────────────────────────
@@ -36,7 +47,7 @@ function requireLogin(): void {
     }
 }
 
-// ── 強制管理員（非 admin 則拒絕）─────────────────────
+// ── 強制管理員權限（非 admin/goddess_plus 則拒絕）───
 function requireAdmin(): void {
     requireLogin();
     if (!isAdmin()) {
