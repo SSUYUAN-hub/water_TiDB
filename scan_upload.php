@@ -66,6 +66,25 @@ $isAdmin = isAdmin();
       background: rgba(255,255,255,0.15); border-radius: 20px;
       padding: 4px 12px; font-size: 0.8em; color: rgba(255,255,255,0.9);
     }
+    /* ── 漢堡選單：向下滑出 dropdown ── */
+    .topbar { position: relative; }
+    .topbar-nav {
+      display: none;
+      position: absolute; top: 100%; right: 0;
+      min-width: 160px;
+      background: var(--green-800, #2e7d32);
+      border-radius: 0 0 10px 10px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+      flex-direction: column; padding: 6px 0; z-index: 200;
+    }
+    .topbar-nav.open { display: flex; }
+    .topbar-nav .topbar-link,
+    .topbar-nav .user-chip {
+      display: block; width: 100%; text-align: left;
+      padding: 10px 18px; border-radius: 0;
+      background: transparent; box-sizing: border-box; white-space: nowrap;
+    }
+    .topbar-nav .topbar-link:hover { background: rgba(255,255,255,0.12); }
   </style>
 </head>
 <body>

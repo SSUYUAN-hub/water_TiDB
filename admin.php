@@ -202,6 +202,29 @@ $employees = getEmployees();
 <style>
 .main-wrap { max-width: 1000px; }
 
+/* ── 漢堡選單：向下滑出 dropdown ── */
+.topbar { position: relative; }
+.topbar-nav {
+    display: none;
+    position: absolute;
+    top: 100%; right: 0;
+    min-width: 160px;
+    background: var(--green-800, #2e7d32);
+    border-radius: 0 0 10px 10px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+    flex-direction: column;
+    padding: 6px 0;
+    z-index: 200;
+}
+.topbar-nav.open { display: flex; }
+.topbar-nav .topbar-link {
+    display: block; width: 100%;
+    text-align: left; padding: 10px 18px;
+    border-radius: 0; background: transparent;
+    box-sizing: border-box; white-space: nowrap;
+}
+.topbar-nav .topbar-link:hover { background: rgba(255,255,255,0.12); }
+
 /* 新增員工/帳號表單 */
 .form-row {
   display: grid;
@@ -225,8 +248,19 @@ $employees = getEmployees();
 .btn-save   { background: var(--blue-700); color: white; }
 .btn-export { background: var(--green-50); color: var(--green-700); border: 1.5px solid #A5D6A7; }
 .btn-export:hover { background: var(--green-100); }
-.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; gap: 10px; }
+.card-header {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+}
 .card-header h2 { font-size: 0.95em; color: var(--grey-700); margin: 0; }
+.card-header-btns {
+  display: flex;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+.card-header-btns .btn { white-space: nowrap; flex-shrink: 0; }
 .empty-state { text-align: center; padding: 28px; color: var(--grey-500); font-size: 0.9em; }
 .night-val { color: var(--purple-600); font-weight: 700; }
 
@@ -345,7 +379,7 @@ $employees = getEmployees();
 <div class="card">
     <div class="card-header">
         <h2>員工列表（共 <?php echo count($employees); ?> 人）</h2>
-        <form method="post" style="margin:0">
+        <form method="post" style="margin:0" class="card-header-btns">
             <input type="hidden" name="action" value="export_employees">
             <button type="submit" class="btn btn-export">
                 📊 匯出統計表 Excel

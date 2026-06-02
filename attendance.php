@@ -571,6 +571,29 @@ if ($isAdmin && isset($_GET['edit_id'])) {
             max-width: 900px;
         }
 
+        /* ── 漢堡選單：向下滑出 dropdown ── */
+        .topbar { position: relative; }
+        .topbar-nav {
+            display: none;
+            position: absolute;
+            top: 100%; right: 0;
+            min-width: 160px;
+            background: var(--green-800, #2e7d32);
+            border-radius: 0 0 10px 10px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+            flex-direction: column;
+            padding: 6px 0;
+            z-index: 200;
+        }
+        .topbar-nav.open { display: flex; }
+        .topbar-nav .topbar-link {
+            display: block; width: 100%;
+            text-align: left; padding: 10px 18px;
+            border-radius: 0; background: transparent;
+            box-sizing: border-box; white-space: nowrap;
+        }
+        .topbar-nav .topbar-link:hover { background: rgba(255,255,255,0.12); }
+
         .filter-bar {
             display: flex;
             gap: 10px;
@@ -582,6 +605,8 @@ if ($isAdmin && isset($_GET['edit_id'])) {
             box-shadow: var(--card-shadow);
             margin-bottom: 14px;
         }
+        .fg-ym { /* 年月區塊標記 */ }
+        .fg-year-sel { /* 年份區塊標記 */ }
 
         .filter-group {
             display: flex;
@@ -753,8 +778,15 @@ if ($isAdmin && isset($_GET['edit_id'])) {
 
         @media(max-width:600px) {
             .filter-bar {
-                flex-direction: column
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 10px;
             }
+            .filter-bar .filter-group { min-width: 0; }
+            /* 年月欄位橫跨整行，讓兩個 select 不被擠壓 */
+            .filter-bar .fg-ym { grid-column: 1 / -1; }
+            /* 年份查詢欄也橫跨整行 */
+            .filter-bar .fg-year-sel { grid-column: 1 / -1; }
 
             .summary-grid {
                 grid-template-columns: repeat(2, 1fr)
@@ -833,7 +865,7 @@ if ($isAdmin && isset($_GET['edit_id'])) {
             <?php endif; ?>
 
             <!-- 月份選擇（月份模式） -->
-            <div class="filter-group" id="fg-month" <?php echo $queryMode === 'year' ? 'style="display:none"' : ''; ?>>
+            <div class="filter-group fg-ym" id="fg-month" <?php echo $queryMode === 'year' ? 'style="display:none"' : ''; ?>>
                 <label>📅 年月</label>
                 <div style="display:flex;gap:4px;align-items:center">
                     <?php
@@ -856,7 +888,7 @@ if ($isAdmin && isset($_GET['edit_id'])) {
             </div>
 
             <!-- 年份選擇（年份模式） -->
-            <div class="filter-group" id="fg-year" <?php echo $queryMode === 'month' ? 'style="display:none"' : ''; ?>>
+            <div class="filter-group fg-year-sel" id="fg-year" <?php echo $queryMode === 'month' ? 'style="display:none"' : ''; ?>>
                 <label>📆 年份</label>
                 <select name="year">
                     <?php for ($y = date('Y'); $y >= date('Y') - 5; $y--): ?>
