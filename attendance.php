@@ -452,6 +452,75 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        if ($action === 'bulk_delete') {
+            $ids = array_map('intval', $_POST['ids'] ?? []);
+            $ids = array_filter($ids);
+            if (!empty($ids)) {
+                try {
+                    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+                    $stmt = getDB()->prepare("DELETE FROM attendance WHERE id IN ($placeholders)");
+                    $stmt->execute($ids);
+                    $deleted = $stmt->rowCount();
+                    $message = "🗑️ 已刪除 {$deleted} 筆出勤紀錄";
+                    $msgType = 'success';
+                } catch (PDOException $e) {
+                    $message = '批次刪除失敗：' . $e->getMessage();
+                    $msgType = 'error';
+                }
+            }
+        }
+
+        if ($action === 'bulk_edit') {
+            $rows   = $_POST['rows'] ?? [];
+            $errors = [];
+            $saved  = 0;
+            foreach ($rows as $rowId => $rowData) {
+                $id       = (int)$rowId;
+                $s1Start  = trim($rowData['s1_start'] ?? '');
+                $s1End    = trim($rowData['s1_end']   ?? '');
+                $s2Start  = trim($rowData['s2_start'] ?? '');
+                $s2End    = trim($rowData['s2_end']   ?? '');
+                $hasBreak = ($rowData['has_break'] ?? '0') === '1';
+                $nightPay = (int)($rowData['night_pay'] ?? 0);
+                $rec = getDB()->prepare('SELECT * FROM attendance WHERE id = ?');
+                $rec->execute([$id]);
+                $row = $rec->fetch();
+                if (!$row) continue;
+                $emp     = getEmployee($row['employee_name']);
+                $empType = $emp['type'] ?? 'hourly';
+                $wage    = (int)($emp['hourly_rate'] ?? 180);
+                // 與 edit action 相同：傳時間字串給 calculateSalary
+                $sal1 = ($s1Start && $s1End) ? calculateSalary($s1Start, $s1End, $wage, $empType, $hasBreak) : ['total_hours'=>0,'overtime_hours'=>0,'overtime_pay'=>0,'salary'=>0];
+                $sal2 = ($s2Start && $s2End) ? calculateSalary($s2Start, $s2End, $wage, $empType, false)    : ['total_hours'=>0,'overtime_hours'=>0,'overtime_pay'=>0,'salary'=>0];
+                $totalHours    = round($sal1['total_hours']    + $sal2['total_hours'],    2);
+                $overtimeHours = round($sal1['overtime_hours'] + $sal2['overtime_hours'], 2);
+                $overtimePay   = $sal1['overtime_pay'] + $sal2['overtime_pay'];
+                $baseSalary    = ($empType === 'fulltime') ? $overtimePay : ($sal1['salary'] + $sal2['salary']);
+                $totalSalary   = $baseSalary + $nightPay;
+                try {
+                    $upd = getDB()->prepare('UPDATE attendance SET s1_start=:s1s,s1_end=:s1e,s2_start=:s2s,s2_end=:s2e,has_break=:hb,total_hours=:th,overtime_hours=:oth,overtime_pay=:otp,night_pay=:np,salary=:sal WHERE id=:id');
+                    $upd->execute([':s1s'=>$s1Start?:null,':s1e'=>$s1End?:null,':s2s'=>$s2Start?:null,':s2e'=>$s2End?:null,':hb'=>$hasBreak?1:0,':th'=>$totalHours,':oth'=>$overtimeHours,':otp'=>$overtimePay,':np'=>$nightPay,':sal'=>$totalSalary,':id'=>$id]);
+                    $saved++;
+                } catch (PDOException $e) {
+                    $errors[] = $row['work_date'] . '：' . $e->getMessage();
+                }
+            }
+            $message = "✅ 已更新 {$saved} 筆紀錄" . (!empty($errors) ? '，部分失敗：' . implode('、', $errors) : '');
+            $msgType = empty($errors) ? 'success' : 'error';
+            // bulk_edit 完成後把查詢參數帶到 GET，讓頁面重新顯示同一查詢
+            $qs = http_build_query(array_filter([
+                'emp'      => $_POST['emp']     ?? '',
+                'ym'       => $_POST['ym']      ?? '',
+                'year'     => $_POST['year']    ?? '',
+                'mode'     => $_POST['mode']    ?? 'month',
+                'searched' => '1',
+                'msg'      => $message,
+                'msg_type' => $msgType,
+            ]));
+            header("Location: attendance.php?{$qs}");
+            exit;
+        }
+
         if ($action === 'edit') {
             $id = (int)($_POST['id'] ?? 0);
             $s1Start = trim($_POST['s1_start'] ?? '');
@@ -511,6 +580,10 @@ $selYM      = $_GET['ym']   ?? date('Y-m');
 // 只有明確按下查詢（URL 帶有 searched=1）才查資料
 // edit_id 存在時也視同已查詢，確保編輯面板能正常顯示
 $searched = isset($_GET['searched']) || isset($_GET['edit_id']);
+if (!empty($_GET['msg']) && empty($message)) {
+    $message = $_GET['msg'];
+    $msgType = $_GET['msg_type'] ?? 'success';
+}
 
 $yearGrouped  = [];
 $attendances  = [];
@@ -615,6 +688,7 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
         }
         .fg-ym { /* 年月區塊標記 */ }
         .fg-year-sel { /* 年份區塊標記 */ }
+        .ym-header:hover td { background: var(--green-100) !important; }
 
         .filter-group {
             display: flex;
@@ -1059,7 +1133,7 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
                             <div style="text-align:right;flex-shrink:0">
                                 <?php if ($wasAdjusted): ?>
                                 <div style="font-size:0.75em;color:var(--red-600);text-decoration:line-through;font-family:var(--font-num)">
-                                    公式：−$<?php echo number_format($calcTotal); ?>
+                                    依法應扣：−$<?php echo number_format($calcTotal); ?>
                                 </div>
                                 <?php endif; ?>
                                 <span style="font-size:1.2em;font-weight:700;font-family:var(--font-num);color:var(--purple-600)">
@@ -1148,16 +1222,23 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
 
                 <!-- 明細表格 -->
                 <div class="card" style="padding:0;overflow:hidden">
-                    <div style="padding:14px 16px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center">
+                    <div style="padding:14px 16px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
                         <div style="font-size:0.88em;font-weight:700;color:var(--green-700)">
                             <?php echo $queryMode === 'year' ? '📆' : '📅'; ?> <?php echo htmlspecialchars($selEmp); ?> · <?php echo $queryMode === 'year' ? ((int)$selYear - 1911) . '年' : $selYM; ?> <?php echo $queryMode === 'year' ? '年度' : '每日'; ?>明細
                         </div>
-                        <span class="badge badge-<?php echo $selEmpType; ?>"><?php echo $selEmpType === 'fulltime' ? '正職' : '時薪制'; ?></span>
+                        <div style="display:flex;align-items:center;gap:8px">
+                            <?php if ($isAdmin): ?>
+                            <button type="button" id="btn-bulk-edit" class="btn btn-ghost btn-sm" onclick="openBulkEdit()" style="display:none">✏️ 多筆編輯（<span id="sel-count">0</span>）</button>
+                            <button type="button" id="btn-bulk-delete" class="btn btn-danger btn-sm" onclick="openDeleteModal()" style="display:none">🗑️ 多筆刪除（<span id="sel-count2">0</span>）</button>
+                            <?php endif; ?>
+                            <span class="badge badge-<?php echo $selEmpType; ?>"><?php echo $selEmpType === 'fulltime' ? '正職' : '時薪制'; ?></span>
+                        </div>
                     </div>
                     <div style="overflow-x:auto;padding:0 4px 4px">
                         <table class="att-table">
                             <thead>
                                 <tr>
+                                    <?php if ($isAdmin): ?><th style="width:36px"><input type="checkbox" id="chk-all" onchange="toggleAll(this)" title="全選"></th><?php endif; ?>
                                     <th>日期</th>
                                     <th>第一段</th>
                                     <th>第二段</th>
@@ -1171,8 +1252,34 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php foreach ($attendances as $att): ?>
-                                    <tr>
+                                <?php if ($queryMode === 'year'): ?>
+                                <?php foreach ($yearGrouped as $ym => $ymRows):
+                                    $ymRoc = ((int)explode('-',$ym)[0]-1911).'年'.(int)explode('-',$ym)[1].'月';
+                                    $ymId  = 'ym-' . str_replace('-','', $ym);
+                                ?>
+                                    <tr class="ym-header" style="background:var(--green-50);cursor:pointer;user-select:none"
+                                        onclick="toggleYM('<?php echo $ymId; ?>', this)">
+                                        <?php if ($isAdmin): ?><td></td><?php endif; ?>
+                                        <td colspan="99" style="font-weight:700;color:var(--green-700);padding:10px 14px">
+                                            <span id="arrow-<?php echo $ymId; ?>" style="margin-right:8px">▶</span>
+                                            📅 <?php echo $ymRoc; ?>（<?php echo count($ymRows); ?> 天）
+                                        </td>
+                                    </tr>
+                                    <?php foreach ($ymRows as $att): ?>
+                                    <tr class="ym-row ym-row-<?php echo $ymId; ?>" style="display:none" data-id="<?php echo $att['id']; ?>"
+                                        data-date="<?php echo $att['work_date']; ?>"
+                                        data-s1s="<?php echo htmlspecialchars(fmtTime($att['s1_start'] ?? '')); ?>"
+                                        data-s1e="<?php echo htmlspecialchars(fmtTime($att['s1_end']   ?? '')); ?>"
+                                        data-s2s="<?php echo htmlspecialchars(fmtTime($att['s2_start'] ?? '')); ?>"
+                                        data-s2e="<?php echo htmlspecialchars(fmtTime($att['s2_end']   ?? '')); ?>"
+                                        data-break="<?php echo $att['has_break'] ? '1' : '0'; ?>"
+                                        data-night="<?php echo $att['night_pay']; ?>"
+                                        data-s1="<?php echo ($att['s1_start']&&$att['s1_end']) ? htmlspecialchars(fmtTime($att['s1_start'])).'→'.htmlspecialchars(fmtTime($att['s1_end'])) : '—'; ?>"
+                                        data-s2="<?php echo ($att['s2_start']&&$att['s2_end']) ? htmlspecialchars(fmtTime($att['s2_start'])).'→'.htmlspecialchars(fmtTime($att['s2_end'])) : '—'; ?>"
+                                        data-hours="<?php echo $att['total_hours']; ?>"
+                                        data-ot="<?php echo $att['overtime_pay']; ?>"
+                                        data-salary="<?php echo number_format($att['salary']); ?>">
+                                        <?php if ($isAdmin): ?><td><input type="checkbox" class="row-chk" onchange="onRowCheck()" value="<?php echo $att['id']; ?>"></td><?php endif; ?>
                                         <td><?php echo $att['work_date']; ?></td>
                                         <td><?php echo ($att['s1_start'] && $att['s1_end']) ? htmlspecialchars(fmtTime($att['s1_start'])) . '→' . htmlspecialchars(fmtTime($att['s1_end'])) : '—'; ?></td>
                                         <td><?php echo ($att['s2_start'] && $att['s2_end']) ? htmlspecialchars(fmtTime($att['s2_start'])) . '→' . htmlspecialchars(fmtTime($att['s2_end'])) : '—'; ?></td>
@@ -1191,21 +1298,115 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
                                                 <div class="action-cell">
                                                     <a href="attendance.php?emp=<?php echo urlencode($selEmp); ?>&ym=<?php echo $selYM; ?>&mode=<?php echo $queryMode; ?>&searched=1&edit_id=<?php echo $att['id']; ?>#edit"
                                                         class="btn btn-ghost btn-sm">✏️</a>
-                                                    <form method="post" style="margin:0" onsubmit="return confirm('確定刪除 <?php echo $att['work_date']; ?> 的出勤紀錄？')">
-                                                        <input type="hidden" name="action" value="delete">
-                                                        <input type="hidden" name="id" value="<?php echo $att['id']; ?>">
-                                                        <button type="submit" class="btn btn-danger btn-sm">🗑️</button>
-                                                    </form>
+                                                    <button type="button" class="btn btn-danger btn-sm"
+                                                        onclick="openDeleteModal([<?php echo $att['id']; ?>])">🗑️</button>
+                                                </div>
+                                            </td>
+                                        <?php endif; ?>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                <?php endforeach; ?>
+                                <?php else: ?>
+                                <?php foreach ($attendances as $att): ?>
+                                    <tr data-id="<?php echo $att['id']; ?>"
+                                        data-date="<?php echo $att['work_date']; ?>"
+                                        data-s1s="<?php echo htmlspecialchars(fmtTime($att['s1_start'] ?? '')); ?>"
+                                        data-s1e="<?php echo htmlspecialchars(fmtTime($att['s1_end']   ?? '')); ?>"
+                                        data-s2s="<?php echo htmlspecialchars(fmtTime($att['s2_start'] ?? '')); ?>"
+                                        data-s2e="<?php echo htmlspecialchars(fmtTime($att['s2_end']   ?? '')); ?>"
+                                        data-break="<?php echo $att['has_break'] ? '1' : '0'; ?>"
+                                        data-night="<?php echo $att['night_pay']; ?>"
+                                        data-s1="<?php echo ($att['s1_start']&&$att['s1_end']) ? htmlspecialchars(fmtTime($att['s1_start'])).'→'.htmlspecialchars(fmtTime($att['s1_end'])) : '—'; ?>"
+                                        data-s2="<?php echo ($att['s2_start']&&$att['s2_end']) ? htmlspecialchars(fmtTime($att['s2_start'])).'→'.htmlspecialchars(fmtTime($att['s2_end'])) : '—'; ?>"
+                                        data-hours="<?php echo $att['total_hours']; ?>"
+                                        data-ot="<?php echo $att['overtime_pay']; ?>"
+                                        data-salary="<?php echo number_format($att['salary']); ?>">
+                                        <?php if ($isAdmin): ?><td><input type="checkbox" class="row-chk" onchange="onRowCheck()" value="<?php echo $att['id']; ?>"></td><?php endif; ?>
+                                        <td><?php echo $att['work_date']; ?></td>
+                                        <td><?php echo ($att['s1_start'] && $att['s1_end']) ? htmlspecialchars(fmtTime($att['s1_start'])) . '→' . htmlspecialchars(fmtTime($att['s1_end'])) : '—'; ?></td>
+                                        <td><?php echo ($att['s2_start'] && $att['s2_end']) ? htmlspecialchars(fmtTime($att['s2_start'])) . '→' . htmlspecialchars(fmtTime($att['s2_end'])) : '—'; ?></td>
+                                        <?php if ($selEmpType === 'fulltime'): ?><td><?php echo $att['has_break'] ? '✅ 有' : '⚡ 無'; ?></td><?php endif; ?>
+                                        <td><?php echo $att['total_hours']; ?></td>
+                                        <?php if ($selEmpType === 'fulltime'): ?>
+                                            <td class="<?php echo $att['overtime_hours'] > 0 ? 'ot-cell' : ''; ?>"><?php echo $att['overtime_hours'] > 0 ? $att['overtime_hours'] . 'h' : '—'; ?></td>
+                                            <td class="<?php echo $att['overtime_pay'] > 0 ? 'ot-cell' : ''; ?>">$<?php echo $att['overtime_pay']; ?></td>
+                                        <?php endif; ?>
+                                        <?php if ($selNightAllow > 0): ?>
+                                            <td class="<?php echo $att['night_pay'] > 0 ? 'night-cell' : ''; ?>"><?php echo $att['night_pay'] > 0 ? '$' . $att['night_pay'] : '—'; ?></td>
+                                        <?php endif; ?>
+                                        <td class="salary-cell">$<?php echo number_format($att['salary']); ?></td>
+                                        <?php if ($isAdmin): ?>
+                                            <td>
+                                                <div class="action-cell">
+                                                    <a href="attendance.php?emp=<?php echo urlencode($selEmp); ?>&ym=<?php echo $selYM; ?>&mode=<?php echo $queryMode; ?>&searched=1&edit_id=<?php echo $att['id']; ?>#edit"
+                                                        class="btn btn-ghost btn-sm">✏️</a>
+                                                    <button type="button" class="btn btn-danger btn-sm"
+                                                        onclick="openDeleteModal([<?php echo $att['id']; ?>])">🗑️</button>
                                                 </div>
                                             </td>
                                         <?php endif; ?>
                                     </tr>
                                 <?php endforeach; ?>
+                                <?php endif; ?>
                             </tbody>
                         </table>
                     </div>
                 </div>
             </div><!-- /results-area -->
+
+            <!-- ══ 刪除確認 Modal ══ -->
+            <div id="delete-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9000;align-items:center;justify-content:center;padding:16px">
+                <div style="background:white;border-radius:var(--radius-lg);max-width:600px;width:100%;max-height:85vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,0.25)">
+                    <div style="padding:18px 20px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center">
+                        <span style="font-weight:700;font-size:1em;color:var(--red-600)">🗑️ 確認刪除</span>
+                        <button type="button" onclick="closeDeleteModal()" style="background:none;border:none;font-size:1.3em;cursor:pointer;color:var(--grey-400)">✕</button>
+                    </div>
+                    <div style="padding:16px 20px;overflow-y:auto">
+                        <div style="font-size:0.88em;color:var(--grey-600);margin-bottom:12px">以下出勤紀錄將被永久刪除，此操作無法復原：</div>
+                        <div style="overflow-x:auto">
+                        <table style="width:100%;border-collapse:collapse;font-size:0.85em">
+                            <thead>
+                                <tr style="background:var(--red-50)">
+                                    <th style="padding:8px 10px;text-align:left;border:1px solid #FFCDD2;color:var(--red-600);white-space:nowrap">日期</th>
+                                    <th style="padding:8px 10px;text-align:center;border:1px solid #FFCDD2;color:var(--red-600);white-space:nowrap">第一段</th>
+                                    <th style="padding:8px 10px;text-align:center;border:1px solid #FFCDD2;color:var(--red-600);white-space:nowrap">第二段</th>
+                                    <th style="padding:8px 10px;text-align:center;border:1px solid #FFCDD2;color:var(--red-600);white-space:nowrap">工時</th>
+                                    <th style="padding:8px 10px;text-align:right;border:1px solid #FFCDD2;color:var(--red-600);white-space:nowrap">薪資</th>
+                                </tr>
+                            </thead>
+                            <tbody id="delete-modal-tbody"></tbody>
+                        </table>
+                        </div>
+                    </div>
+                    <div style="padding:14px 20px;border-top:1px solid #eee;display:flex;gap:10px;justify-content:flex-end">
+                        <button type="button" class="btn btn-secondary" onclick="closeDeleteModal()">取消</button>
+                        <button type="button" class="btn btn-danger" onclick="confirmDelete()" id="confirm-delete-btn">確定刪除</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ══ 多筆編輯 Modal ══ -->
+            <div id="bulk-edit-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9000;align-items:center;justify-content:center;padding:16px">
+                <div style="background:white;border-radius:var(--radius-lg);max-width:700px;width:100%;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,0.25)">
+                    <div style="padding:18px 20px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center">
+                        <span style="font-weight:700;font-size:1em;color:var(--green-700)">✏️ 多筆編輯出勤紀錄</span>
+                        <button type="button" onclick="closeBulkEdit()" style="background:none;border:none;font-size:1.3em;cursor:pointer;color:var(--grey-400)">✕</button>
+                    </div>
+                    <div style="padding:16px 20px;overflow-y:auto;flex:1">
+                        <div style="font-size:0.85em;color:var(--grey-500);margin-bottom:14px">逐筆修改後點擊「儲存所有變更」</div>
+                        <form id="bulk-edit-form" method="post">
+                            <input type="hidden" name="action" value="bulk_edit">
+                            <?php echo implode('', array_map(fn($k) => '<input type="hidden" name="preserve_' . htmlspecialchars($k) . '" value="' . htmlspecialchars($_GET[$k] ?? '') . '">', ['emp','ym','year','mode','searched'])); ?>
+                            <div id="bulk-edit-rows" style="display:flex;flex-direction:column;gap:12px"></div>
+                        </form>
+                    </div>
+                    <div style="padding:14px 20px;border-top:1px solid #eee;display:flex;gap:10px;justify-content:flex-end">
+                        <button type="button" class="btn btn-secondary" onclick="closeBulkEdit()">取消</button>
+                        <button type="button" class="btn btn-primary" onclick="submitBulkEdit()">💾 儲存所有變更</button>
+                    </div>
+                </div>
+            </div>
+
         <?php endif; ?>
 
         <!-- ── 修改登入密碼 ──
@@ -1236,6 +1437,180 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
         const nav = document.getElementById('topbar-nav');
         nav.classList.toggle('open');
         btn.setAttribute('aria-expanded', nav.classList.contains('open'));
+    }
+
+    // ── 年份月份折疊 ──
+    function toggleYM(ymId, headerRow) {
+        const rows  = document.querySelectorAll('.ym-row-' + ymId);
+        const arrow = document.getElementById('arrow-' + ymId);
+        const open  = rows.length > 0 && rows[0].style.display === 'none';
+        rows.forEach(r => r.style.display = open ? '' : 'none');
+        if (arrow) arrow.textContent = open ? '▼' : '▶';
+    }
+
+    // ── Checkbox 多選邏輯 ──
+    function toggleAll(chk) {
+        document.querySelectorAll('.row-chk').forEach(c => c.checked = chk.checked);
+        updateBulkButtons();
+    }
+    function onRowCheck() {
+        const all   = document.querySelectorAll('.row-chk');
+        const chked = document.querySelectorAll('.row-chk:checked');
+        const allChk = document.getElementById('chk-all');
+        if (allChk) allChk.checked = all.length === chked.length && all.length > 0;
+        updateBulkButtons();
+    }
+    function updateBulkButtons() {
+        const n    = document.querySelectorAll('.row-chk:checked').length;
+        const bE   = document.getElementById('btn-bulk-edit');
+        const bD   = document.getElementById('btn-bulk-delete');
+        const sc   = document.getElementById('sel-count');
+        const sc2  = document.getElementById('sel-count2');
+        if (bE)  { bE.style.display  = n > 0 ? '' : 'none'; }
+        if (bD)  { bD.style.display  = n > 0 ? '' : 'none'; }
+        if (sc)  sc.textContent  = n;
+        if (sc2) sc2.textContent = n;
+    }
+    function getCheckedRows() {
+        return Array.from(document.querySelectorAll('.row-chk:checked'))
+            .map(c => c.closest('tr'));
+    }
+
+    // ── 刪除確認 Modal ──
+    let pendingDeleteIds = [];
+    function openDeleteModal(idsArg) {
+        // idsArg: 單筆傳 [id]；多筆不傳，從 checkbox 取
+        if (idsArg && idsArg.length > 0) {
+            pendingDeleteIds = idsArg;
+            const tr = document.querySelector('tr[data-id="' + idsArg[0] + '"]');
+            renderDeleteRows(tr ? [tr] : []);
+        } else {
+            const rows = getCheckedRows();
+            pendingDeleteIds = rows.map(r => parseInt(r.dataset.id));
+            renderDeleteRows(rows);
+        }
+        document.getElementById('delete-modal').style.display = 'flex';
+    }
+    function renderDeleteRows(rows) {
+        const tbody = document.getElementById('delete-modal-tbody');
+        tbody.innerHTML = rows.map(tr => {
+            const d = tr.dataset;
+            return `<tr style="border-bottom:1px solid #eee">
+                <td style="padding:8px 10px;border:1px solid #eee;font-weight:700;white-space:nowrap">${d.date||''}</td>
+                <td style="padding:8px 10px;border:1px solid #eee;text-align:center;white-space:nowrap">${d.s1||'—'}</td>
+                <td style="padding:8px 10px;border:1px solid #eee;text-align:center;white-space:nowrap">${d.s2||'—'}</td>
+                <td style="padding:8px 10px;border:1px solid #eee;text-align:center;white-space:nowrap">${d.hours||''}h</td>
+                <td style="padding:8px 10px;border:1px solid #eee;text-align:right;white-space:nowrap;font-weight:700;color:#E53935">$${d.salary||'0'}</td>
+            </tr>`;
+        }).join('');
+    }
+    function closeDeleteModal() {
+        document.getElementById('delete-modal').style.display = 'none';
+        pendingDeleteIds = [];
+    }
+    function confirmDelete() {
+        if (pendingDeleteIds.length === 0) return;
+        const form = document.createElement('form');
+        form.method = 'post';
+        form.style.display = 'none';
+        const addHidden = (n, v) => { const i = document.createElement('input'); i.type='hidden'; i.name=n; i.value=v; form.appendChild(i); };
+        if (pendingDeleteIds.length === 1) {
+            addHidden('action', 'delete');
+            addHidden('id', pendingDeleteIds[0]);
+        } else {
+            addHidden('action', 'bulk_delete');
+            pendingDeleteIds.forEach(id => addHidden('ids[]', id));
+        }
+        // 保留查詢參數
+        ['emp','ym','year','mode','searched'].forEach(k => {
+            const v = new URLSearchParams(location.search).get(k);
+            if (v) addHidden(k, v);
+        });
+        document.body.appendChild(form);
+        form.submit();
+    }
+
+    // ── 多筆編輯 Modal ──
+    function openBulkEdit() {
+        const rows = getCheckedRows();
+        if (rows.length === 0) return;
+        const container = document.getElementById('bulk-edit-rows');
+        container.innerHTML = rows.map(tr => {
+            const d = tr.dataset;
+            const id = d.id;
+            const breakChecked = d.break === '1' ? 'selected' : '';
+            const noBreakChecked = d.break !== '1' ? 'selected' : '';
+            return `<div style="background:#F8F9FA;border-radius:var(--radius-md);padding:14px 16px;border:1px solid #eee">
+                <div style="font-size:0.82em;font-weight:700;color:var(--green-700);margin-bottom:12px">📅 ${d.date}</div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;align-items:end">
+                    <div>
+                        <label style="font-size:0.75em;color:var(--grey-500);font-weight:600;display:block;margin-bottom:4px">🔵 第一段上班</label>
+                        <input type="text" name="rows[${id}][s1_start]" class="edit-time-input" value="${d.s1s||''}" placeholder="08:00" inputmode="numeric" maxlength="5" style="width:100%;box-sizing:border-box">
+                    </div>
+                    <div>
+                        <label style="font-size:0.75em;color:var(--grey-500);font-weight:600;display:block;margin-bottom:4px">🟢 第一段下班</label>
+                        <input type="text" name="rows[${id}][s1_end]" class="edit-time-input" value="${d.s1e||''}" placeholder="17:00" inputmode="numeric" maxlength="5" style="width:100%;box-sizing:border-box">
+                    </div>
+                    <div>
+                        <label style="font-size:0.75em;color:var(--grey-500);font-weight:600;display:block;margin-bottom:4px">🟣 第二段上班</label>
+                        <input type="text" name="rows[${id}][s2_start]" class="edit-time-input" value="${d.s2s||''}" placeholder="（可空白）" inputmode="numeric" maxlength="5" style="width:100%;box-sizing:border-box">
+                    </div>
+                    <div>
+                        <label style="font-size:0.75em;color:var(--grey-500);font-weight:600;display:block;margin-bottom:4px">⚫ 第二段下班</label>
+                        <input type="text" name="rows[${id}][s2_end]" class="edit-time-input" value="${d.s2e||''}" placeholder="（可空白）" inputmode="numeric" maxlength="5" style="width:100%;box-sizing:border-box">
+                    </div>
+                    <div>
+                        <label style="font-size:0.75em;color:var(--grey-500);font-weight:600;display:block;margin-bottom:4px">☕ 有無休息</label>
+                        <select name="rows[${id}][has_break]" class="form-select" style="width:100%;box-sizing:border-box">
+                            <option value="1" ${d.break==='1'?'selected':''}>✅ 有休息</option>
+                            <option value="0" ${d.break!=='1'?'selected':''}>⚡ 沒休息</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size:0.75em;color:var(--grey-500);font-weight:600;display:block;margin-bottom:4px">🌙 夜班津貼($)</label>
+                        <input type="number" name="rows[${id}][night_pay]" value="${d.night||0}" min="0" class="form-input" style="width:100%;box-sizing:border-box">
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+        // 套用時間輸入格式化
+        container.querySelectorAll('.edit-time-input').forEach(attachTimeFormat);
+        document.getElementById('bulk-edit-modal').style.display = 'flex';
+    }
+    function closeBulkEdit() {
+        document.getElementById('bulk-edit-modal').style.display = 'none';
+    }
+    function submitBulkEdit() {
+        const form = document.getElementById('bulk-edit-form');
+        // 保留查詢參數
+        ['emp','ym','year','mode','searched'].forEach(k => {
+            const v = new URLSearchParams(location.search).get(k);
+            if (v) {
+                let inp = form.querySelector('[name="preserve_'+k+'"]');
+                if (!inp) { inp = document.createElement('input'); inp.type='hidden'; inp.name=k; form.appendChild(inp); }
+                inp.value = v;
+            }
+        });
+        form.submit();
+    }
+
+    // 時間輸入格式化（attach 到任意 input）
+    function attachTimeFormat(input) {
+        input.setAttribute('inputmode','numeric');
+        input.setAttribute('maxlength','5');
+        input.addEventListener('input', function() {
+            let v = this.value.replace(/[^0-9]/g,'').slice(0,4);
+            if (v.length === 4) this.value = v.slice(0,2) + ':' + v.slice(2);
+            else this.value = v;
+        });
+        input.addEventListener('blur', function() {
+            const p = this.value.split(':');
+            if (p.length === 2) {
+                const h = parseInt(p[0]), m = parseInt(p[1]);
+                if (!isNaN(h) && !isNaN(m))
+                    this.value = String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+            }
+        });
     }
 
     function toggleInsFormula(btn) {
