@@ -552,7 +552,7 @@ function checkNightShift(string $endTime): bool {
 
 <?php if ($isSide2 && !empty($side1Days)): ?>
 <div style="background:#EDE7F6;border-left:4px solid #7C4DFF;border-radius:8px;padding:10px 14px;margin-bottom:8px;font-size:0.85em;color:#4A148C;font-weight:600">
-  ✅ 第一面已儲存 <strong><?php echo count($side1Days); ?></strong> 天記錄，確認後將與第二面合併寫入 Excel
+  ✅ 第一面已儲存 <strong><?php echo count($side1Days); ?></strong> 天記錄，確認後將與第二面合併寫入資料庫
 </div>
 <?php endif; ?>
 <div class="summary-bar">

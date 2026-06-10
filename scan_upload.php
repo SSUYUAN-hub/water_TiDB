@@ -154,7 +154,7 @@ $isAdmin = isAdmin();
       <div class="mode-panel active" id="panel-scan">
         <div class="msg msg-info" style="font-size:0.82em">
           <strong>📋 整張卡片辨識（推薦）</strong><br>
-          拍攝整張月份卡片，AI 解析所有日期與兩段工時，逐日確認後一次寫入 Excel。
+          拍攝整張月份卡片，AI 解析所有日期與兩段工時，逐日確認後一次寫入資料庫。
         </div>
         <?php if ($nextSide && $carryData): ?>
           <div style="background:#EDE7F6;border-left:4px solid #7C4DFF;border-radius:8px;padding:12px 14px;margin-bottom:10px;font-size:0.85em;color:#4A148C;">
@@ -200,7 +200,7 @@ $isAdmin = isAdmin();
       <div class="mode-panel" id="panel-single" style="display:none">
         <div class="msg msg-info" style="font-size:0.82em">
           <strong>📷 單日辨識</strong><br>
-          拍攝當天那一列，辨識上下班時間，確認後即時寫入 Excel。
+          拍攝當天那一列，辨識上下班時間，確認後即時寫入資料庫。
         </div>
         <form action="config.php" method="post" enctype="multipart/form-data">
           <input type="hidden" name="employee_name" id="single-emp-name" value="">
