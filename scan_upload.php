@@ -4,7 +4,6 @@ include_once __DIR__ . '/auth.php';
 requireLogin();
 include_once __DIR__ . '/db.php';
 $employees = getEmployees();
-$first = $employees[0] ?? null;
 $nextSide   = isset($_POST['next_side_scan']);
 $prefillEmp = $_POST['prefill_employee']  ?? '';
 $prefillYM  = $_POST['prefill_yearmonth'] ?? '';
@@ -125,6 +124,7 @@ $isAdmin = isAdmin();
         </div>
         <div class="form-group" style="margin-bottom:6px">
           <select id="emp-select" class="form-select" onchange="updateEmpMeta(this)">
+            <option value="">— 請先選擇員工 —</option>
             <?php foreach ($employees as $emp): ?>
               <?php
               $wageUnit = $emp['type'] === 'fulltime' ? '月薪' : '時薪';
@@ -139,14 +139,8 @@ $isAdmin = isAdmin();
             <?php endforeach; ?>
           </select>
         </div>
-        <?php $fType = $first['type']; $fWage = number_format($first['hourly_rate']); ?>
         <div id="emp-meta" style="font-size:0.82em;color:var(--grey-500);display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:4px 2px">
-          <span class="badge badge-<?php echo $fType; ?>"><?php echo $fType === 'fulltime' ? '正職' : '時薪制'; ?></span>
-          <?php if ($fType === 'fulltime'): ?>
-            月薪 $<?php echo $fWage; ?>/月 &nbsp;·&nbsp; 超過8h計加班費
-          <?php else: ?>
-            時薪 $<?php echo $fWage; ?>/h &nbsp;·&nbsp; 時薪×工時
-          <?php endif; ?>
+          <span style="color:var(--amber-500)">⚠️ 請先從上方選擇員工後再上傳照片</span>
         </div>
       </div>
 
@@ -177,8 +171,7 @@ $isAdmin = isAdmin();
           </div>
         <?php endif; ?>
         <form action="scan.php" method="post" enctype="multipart/form-data">
-          <input type="hidden" name="employee_name" id="scan-emp-name"
-            value="<?php echo htmlspecialchars($first['name']); ?>">
+          <input type="hidden" name="employee_name" id="scan-emp-name" value="">
           <?php if ($nextSide && $carryData): ?>
             <input type="hidden" name="carry_side1" value="<?php echo htmlspecialchars($carryData); ?>">
             <input type="hidden" name="prefill_yearmonth" value="<?php echo htmlspecialchars($prefillYM); ?>">
@@ -210,8 +203,7 @@ $isAdmin = isAdmin();
           拍攝當天那一列，辨識上下班時間，確認後即時寫入 Excel。
         </div>
         <form action="config.php" method="post" enctype="multipart/form-data">
-          <input type="hidden" name="employee_name" id="single-emp-name"
-            value="<?php echo htmlspecialchars($first['name']); ?>">
+          <input type="hidden" name="employee_name" id="single-emp-name" value="">
           <div class="upload-zone" id="zone-single">
             <span class="upload-icon">📷</span>
             <div class="upload-text">選擇或拍攝當日打卡照片<br><strong>支援 JPG / PNG</strong></div>
@@ -253,33 +245,87 @@ $isAdmin = isAdmin();
     function filterEmployees(kw) {
       const sel = document.getElementById('emp-select');
       const k = kw.trim().toLowerCase();
-      let first = null;
+      // 只過濾顯示，不自動選取
       sel.querySelectorAll('option').forEach(opt => {
-        const match = opt.textContent.toLowerCase().includes(k);
-        opt.style.display = match ? '' : 'none';
-        if (match && !first) first = opt;
+        opt.style.display = (!opt.value || opt.textContent.toLowerCase().includes(k)) ? '' : 'none';
       });
-      if (first) { sel.value = first.value; updateEmpMeta(sel); }
     }
 
     function updateEmpMeta(sel) {
-      const opt = sel.options[sel.selectedIndex];
-      const name = opt.value, type = opt.dataset.type, rate = opt.dataset.rate;
-      const badge = type === 'fulltime'
+      const opt  = sel.options[sel.selectedIndex];
+      const name = opt.value;
+      const meta = document.getElementById('emp-meta');
+
+      // 未選取：顯示提示，清空 hidden input
+      if (!name) {
+        meta.innerHTML = "<span style='color:var(--amber-500)'>⚠️ 請先從上方選擇員工後再上傳照片</span>";
+        document.getElementById('scan-emp-name').value   = '';
+        document.getElementById('single-emp-name').value = '';
+        setUploadEnabled(false);
+        return;
+      }
+
+      const type = opt.dataset.type, rate = opt.dataset.rate;
+      const badge      = type === 'fulltime'
         ? "<span class='badge badge-fulltime'>正職</span>"
         : "<span class='badge badge-hourly'>時薪制</span>";
       const wageUnit   = type === 'fulltime' ? '月薪' : '時薪';
       const wageSuffix = type === 'fulltime' ? '/月' : '/h';
       const rule       = type === 'fulltime' ? '超過8h計加班費' : '時薪×工時';
-      document.getElementById('emp-meta').innerHTML =
+      meta.innerHTML =
         badge + ' ' + wageUnit + ' $' + parseInt(rate).toLocaleString() + wageSuffix + ' &nbsp;·&nbsp; ' + rule;
       document.getElementById('scan-emp-name').value   = name;
       document.getElementById('single-emp-name').value = name;
+      setUploadEnabled(true);
+      hideEmpAlert();
+    }
+
+    // 上傳區塊視覺鎖定（員工未選時淡化）
+    function setUploadEnabled(enabled) {
+      ['zone-scan','zone-single'].forEach(id => {
+        const z = document.getElementById(id);
+        if (!z) return;
+        z.style.opacity  = enabled ? '' : '0.45';
+        z.style.pointerEvents = enabled ? '' : 'none';
+      });
+    }
+
+    // 顯示 / 隱藏行內提示訊息
+    function showEmpAlert(formId) {
+      let el = document.getElementById('emp-alert-' + formId);
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'emp-alert-' + formId;
+        el.style.cssText =
+          'background:#FFF3E0;border-left:4px solid #FF9800;border-radius:6px;' +
+          'padding:10px 14px;font-size:0.88em;color:#E65100;font-weight:600;margin-bottom:8px';
+        el.textContent = '⚠️ 請先選擇員工，再上傳照片';
+        const panel = document.getElementById('panel-' + formId);
+        if (panel) panel.insertBefore(el, panel.querySelector('form'));
+      }
+      el.style.display = '';
+      // 捲動到提示
+      document.getElementById('emp-select').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      document.getElementById('emp-select').focus();
+    }
+    function hideEmpAlert() {
+      ['scan','single'].forEach(id => {
+        const el = document.getElementById('emp-alert-' + id);
+        if (el) el.style.display = 'none';
+      });
     }
 
     function syncFile(srcInput, otherInputId, previewId, statusId) {
       const file = srcInput.files[0];
       if (!file) return;
+      // 員工未選取：阻擋並提示
+      const currentMode = document.querySelector('.mode-tab.active') &&
+        document.getElementById('panel-single').style.display === '' ? 'single' : 'scan';
+      if (!document.getElementById('scan-emp-name').value) {
+        showEmpAlert(currentMode);
+        srcInput.value = '';
+        return;
+      }
       const other = document.getElementById(otherInputId);
       try { const dt = new DataTransfer(); dt.items.add(file); if (other) other.files = dt.files; } catch(e){}
       const img = document.getElementById(previewId);
@@ -288,8 +334,35 @@ $isAdmin = isAdmin();
       if (status) { status.textContent = '✓ 已選取：' + file.name; status.style.display = 'block'; }
     }
 
+    // form submit 攔截（防止直接按按鈕送出）
+    document.addEventListener('DOMContentLoaded', function() {
+      // 初始鎖定上傳區
+      setUploadEnabled(false);
+
+      // 整張卡片 form
+      const scanForm = document.querySelector('#panel-scan form[action="scan.php"]');
+      if (scanForm) {
+        scanForm.addEventListener('submit', function(e) {
+          if (!document.getElementById('scan-emp-name').value) {
+            e.preventDefault();
+            showEmpAlert('scan');
+          }
+        });
+      }
+      // 單日辨識 form
+      const singleForm = document.querySelector('#panel-single form');
+      if (singleForm) {
+        singleForm.addEventListener('submit', function(e) {
+          if (!document.getElementById('single-emp-name').value) {
+            e.preventDefault();
+            showEmpAlert('single');
+          }
+        });
+      }
+    });
+
     <?php if ($nextSide && $prefillEmp): ?>
-    (function() {
+    document.addEventListener('DOMContentLoaded', function() {
       const sel = document.getElementById('emp-select');
       if (sel) {
         for (let i = 0; i < sel.options.length; i++) {
@@ -299,7 +372,7 @@ $isAdmin = isAdmin();
         }
       }
       switchMode('scan');
-    })();
+    });
     <?php endif; ?>
 
     document.querySelectorAll('.upload-zone').forEach(zone => {
