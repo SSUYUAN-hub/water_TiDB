@@ -1013,8 +1013,8 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
                 ?>
                 <div class="card" style="padding:0;overflow:hidden;margin-bottom:14px">
                     <div style="padding:12px 16px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
-                        <span style="font-size:0.88em;font-weight:700;color:var(--grey-700)">💰 月結薪資明細</span>
-                        <span style="font-size:0.75em;color:var(--grey-400)">
+                        <span style="font-size:1em;font-weight:700;color:var(--grey-700)">💰 月結薪資明細</span>
+                        <span style="font-size:1em;color:var(--grey-400)">
                             費率快照：勞保 <?php echo round($md['labor_ins_rate'] * 100, 2); ?>%／健保 <?php echo round($md['health_ins_rate'] * 100, 3); ?>%
                         </span>
                     </div>
@@ -1023,7 +1023,7 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
                         <!-- 月薪 -->
                         <div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px dashed #eee;font-size:0.88em">
                             <span style="color:var(--grey-500)">月薪</span>
-                            <span style="font-weight:700;font-family:var(--font-num)">$<?php echo number_format((int)($selEmpData['hourly_rate'] ?? 0)); ?></span>
+                            <span style="font-size:1.5em;font-weight:700;font-family:var(--font-num)">$<?php echo number_format((int)($selEmpData['hourly_rate'] ?? 0)); ?></span>
                         </div>
 
                         <!-- 加班費 -->
@@ -1058,11 +1058,11 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
                             </div>
                             <div style="text-align:right;flex-shrink:0">
                                 <?php if ($wasAdjusted): ?>
-                                <div style="font-size:0.75em;color:var(--grey-400);text-decoration:line-through;font-family:var(--font-num)">
+                                <div style="font-size:0.75em;color:var(--red-600);text-decoration:line-through;font-family:var(--font-num)">
                                     公式：−$<?php echo number_format($calcTotal); ?>
                                 </div>
                                 <?php endif; ?>
-                                <span style="font-weight:700;font-family:var(--font-num);color:var(--purple-600)">
+                                <span style="font-size:1.2em;font-weight:700;font-family:var(--font-num);color:var(--purple-600)">
                                     −$<?php echo number_format($finalTotal); ?>
                                 </span>
                             </div>
@@ -1101,8 +1101,8 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
 
                         <!-- 實領金額 -->
                         <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;background:var(--green-50);margin:0 -0px;padding:12px 0;border-top:2px solid #A5D6A7">
-                            <span style="font-weight:700;color:var(--green-700);font-size:0.9em">實領金額</span>
-                            <span style="font-weight:700;font-family:var(--font-num);color:var(--green-700);font-size:1.2em">$<?php echo number_format((int)$md['net_salary']); ?></span>
+                            <span style="font-weight:700;color:var(--green-700);font-size:1.5em">實領金額</span>
+                            <span style="font-weight:700;font-family:var(--font-num);color:var(--green-700);font-size:1.7em">$<?php echo number_format((int)$md['net_salary']); ?></span>
                         </div>
                     </div>
                 </div>
@@ -1239,7 +1239,9 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
     }
 
     function toggleInsFormula(btn) {
-        const detail = btn.closest('div').closest('div').nextElementSibling;
+        // 按鈕 → 左側div → 整行div → nextElementSibling = ins-formula-detail
+        const row    = btn.closest('div').parentElement;
+        const detail = row ? row.nextElementSibling : null;
         if (!detail || !detail.classList.contains('ins-formula-detail')) return;
         const open = detail.style.display === 'none';
         detail.style.display = open ? 'block' : 'none';
