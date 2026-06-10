@@ -53,8 +53,8 @@ function calcHours(float $total, float $rate, string $type, bool $hasBreak): arr
     if($type==='hourly') return ['total_hours'=>round($total,2),'overtime_hours'=>0,'overtime_pay'=>0,'salary'=>(int)round($total*$rate)];
     $bt=($hasBreak&&$total>=8)?0.5:0; $actual=max($total-$bt,0);
     $ot1=min(max($actual-8,0),2); $ot2=max($actual-10,0);
-    $otPay=$ot1*$rate*1.34+$ot2*$rate*1.67;
-    return ['total_hours'=>round($actual,2),'overtime_hours'=>round($ot1+$ot2,2),'overtime_pay'=>(int)round($otPay),'salary'=>(int)round($otPay)];
+    $otPay=$ot1*$rate*(4/3)+$ot2*$rate*(5/3);
+    return ['total_hours'=>round($actual,2),'overtime_hours'=>round($ot1+$ot2,2),'overtime_pay'=>(int)ceil($otPay),'salary'=>(int)ceil($otPay)];
 }
 
 foreach ($days as $day) {

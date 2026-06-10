@@ -64,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $msgType = 'error';
                 } else {
                     // 把預覽資料存入 session 供下一步確認匯入
-                    session_start();
+                    if (session_status() === PHP_SESSION_NONE) session_start();
                     $_SESSION['import_preview'] = $preview;
                     $message = '已解析 ' . count($preview) . ' 筆資料，請確認後按「確認匯入」';
                     $msgType = 'info';
