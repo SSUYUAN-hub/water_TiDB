@@ -1219,10 +1219,11 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
                         </div>
                         <?php endif; ?>
 
-                        <!-- 實領金額 -->
+                        <!-- 實領金額（即時計算：月薪+加班費+夜班津貼-實際扣繳） -->
+                        <?php $liveNet = (int)($selEmpData['hourly_rate'] ?? 0) + $monthSummary['overtime_pay'] + $monthSummary['night_pay'] - $finalTotal; ?>
                         <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;background:var(--green-50);border-top:2px solid #A5D6A7;margin-top:4px">
                             <span style="font-weight:700;color:var(--green-700);font-size:1.2em">實領金額</span>
-                            <span style="font-weight:700;font-family:var(--font-num);color:var(--green-700);font-size:1.5em">$<?php echo number_format((int)$md['net_salary']); ?></span>
+                            <span style="font-weight:700;font-family:var(--font-num);color:var(--green-700);font-size:1.5em">$<?php echo number_format($liveNet); ?></span>
                         </div>
                     </div>
                 </div>
@@ -1365,7 +1366,6 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
                                 ?>
                                     <tr class="ym-header" style="background:var(--green-50);cursor:pointer;user-select:none"
                                         onclick="toggleYM('<?php echo $ymId; ?>', this)">
-                                        <?php if ($isAdmin): ?><td></td><?php endif; ?>
                                         <td colspan="99" style="font-weight:700;color:var(--green-700);padding:10px 14px">
                                             <span id="arrow-<?php echo $ymId; ?>" style="margin-right:8px">▶</span>
                                             📅 <?php echo $ymRoc; ?>（<?php echo count($ymRows); ?> 天）
