@@ -557,6 +557,12 @@ if ($isAdmin && isset($_GET['edit_id'])) {
     $editRow = $editStmt->fetch();
     // 確認此紀錄屬於管理員有權存取的範圍（任何員工皆可）
 }
+
+// 月份查詢時撈月結扣項（正職 + 月份模式才有意義）
+$monthlyDeduction = null;
+if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp && $selYM) {
+    $monthlyDeduction = getMonthlyDeduction($selEmp, $selYM);
+}
 ?>
 <!DOCTYPE html>
 <html lang="zh-TW">
@@ -992,6 +998,122 @@ if ($isAdmin && isset($_GET['edit_id'])) {
                     </div>
                 </div>
 
+                <!-- 月結扣項摘要（正職 + 月份模式才顯示） -->
+                <?php if ($queryMode === 'month' && $selEmpType === 'fulltime'): ?>
+                <?php if ($monthlyDeduction): ?>
+                <?php
+                    $md          = $monthlyDeduction;
+                    $laborCalc   = (int)($md['labor_ins_calc']  ?? $md['labor_ins']);
+                    $healthCalc  = (int)($md['health_ins_calc'] ?? $md['health_ins']);
+                    $laborFinal  = (int)$md['labor_ins'];
+                    $healthFinal = (int)$md['health_ins'];
+                    $calcTotal   = $laborCalc + $healthCalc;
+                    $finalTotal  = $laborFinal + $healthFinal;
+                    $wasAdjusted = $calcTotal !== $finalTotal;
+                ?>
+                <div class="card" style="padding:0;overflow:hidden;margin-bottom:14px">
+                    <div style="padding:12px 16px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+                        <span style="font-size:0.88em;font-weight:700;color:var(--grey-700)">💰 月結薪資明細</span>
+                        <span style="font-size:0.75em;color:var(--grey-400)">
+                            費率快照：勞保 <?php echo round($md['labor_ins_rate'] * 100, 2); ?>%／健保 <?php echo round($md['health_ins_rate'] * 100, 3); ?>%
+                        </span>
+                    </div>
+                    <div style="padding:14px 16px;display:flex;flex-direction:column;gap:0">
+
+                        <!-- 月薪 -->
+                        <div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px dashed #eee;font-size:0.88em">
+                            <span style="color:var(--grey-500)">月薪</span>
+                            <span style="font-weight:700;font-family:var(--font-num)">$<?php echo number_format((int)($selEmpData['hourly_rate'] ?? 0)); ?></span>
+                        </div>
+
+                        <!-- 加班費 -->
+                        <?php if ($monthSummary['overtime_pay'] > 0): ?>
+                        <div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px dashed #eee;font-size:0.88em">
+                            <span style="color:var(--grey-500)">加班費</span>
+                            <span style="font-weight:700;font-family:var(--font-num);color:var(--amber-500)">+$<?php echo number_format($monthSummary['overtime_pay']); ?></span>
+                        </div>
+                        <?php endif; ?>
+
+                        <!-- 夜班津貼 -->
+                        <?php if ($monthSummary['night_pay'] > 0): ?>
+                        <div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px dashed #eee;font-size:0.88em">
+                            <span style="color:var(--grey-500)">🌙 夜班津貼</span>
+                            <span style="font-weight:700;font-family:var(--font-num);color:var(--purple-600)">+$<?php echo number_format($monthSummary['night_pay']); ?></span>
+                        </div>
+                        <?php endif; ?>
+
+                        <!-- 勞健保費用 -->
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:9px 0;border-bottom:1px dashed #eee;font-size:0.88em;gap:8px">
+                            <div>
+                                <div style="color:var(--grey-500)">
+                                    勞健保費用
+                                    <?php if ($wasAdjusted): ?>
+                                    <span style="font-size:0.75em;background:#FFF3E0;color:#E65100;border-radius:4px;padding:1px 6px;margin-left:4px;font-weight:600">已調整</span>
+                                    <?php endif; ?>
+                                </div>
+                                <!-- 展開公式按鈕 -->
+                                <button type="button"
+                                    style="margin-top:5px;font-size:0.75em;background:none;border:1px solid var(--grey-300);border-radius:4px;padding:3px 8px;cursor:pointer;color:var(--grey-500);font-family:var(--font-body)"
+                                    onclick="toggleInsFormula(this)">📐 查看計算公式 ▼</button>
+                            </div>
+                            <div style="text-align:right;flex-shrink:0">
+                                <?php if ($wasAdjusted): ?>
+                                <div style="font-size:0.75em;color:var(--grey-400);text-decoration:line-through;font-family:var(--font-num)">
+                                    公式：−$<?php echo number_format($calcTotal); ?>
+                                </div>
+                                <?php endif; ?>
+                                <span style="font-weight:700;font-family:var(--font-num);color:var(--purple-600)">
+                                    −$<?php echo number_format($finalTotal); ?>
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- 計算公式展開區 -->
+                        <div class="ins-formula-detail" style="display:none;background:#F8F9FA;border-bottom:1px dashed #eee;padding:12px 14px;font-size:0.82em;color:var(--grey-700);line-height:2">
+                            <div style="font-weight:700;color:var(--grey-500);font-size:0.8em;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px">🛡️ 勞保費</div>
+                            <div style="display:flex;justify-content:space-between"><span style="color:var(--grey-500)">投保薪資級距</span><span style="font-weight:700;font-family:var(--font-num)">$<?php echo number_format((int)$md['insured_salary']); ?></span></div>
+                            <div style="display:flex;justify-content:space-between"><span style="color:var(--grey-500)">費率 × 自付比例</span><span style="font-weight:700;font-family:var(--font-num)"><?php echo round($md['labor_ins_rate']*100,2); ?>% × 20%</span></div>
+                            <div style="display:flex;justify-content:space-between;background:white;border-radius:4px;padding:4px 8px;margin-top:4px;border:1px solid #eee">
+                                <span style="color:var(--purple-600);font-weight:700">公式計算</span>
+                                <span style="font-weight:700;font-family:var(--font-num);color:var(--purple-600)">$<?php echo number_format($laborCalc); ?></span>
+                            </div>
+                            <?php if ($wasAdjusted && $laborFinal !== $laborCalc): ?>
+                            <div style="display:flex;justify-content:space-between;background:#FFF3E0;border-radius:4px;padding:4px 8px;margin-top:4px;border:1px solid #FFE082">
+                                <span style="color:#E65100;font-weight:700">管理員調整後</span>
+                                <span style="font-weight:700;font-family:var(--font-num);color:#E65100">$<?php echo number_format($laborFinal); ?></span>
+                            </div>
+                            <?php endif; ?>
+
+                            <div style="font-weight:700;color:var(--grey-500);font-size:0.8em;text-transform:uppercase;letter-spacing:0.06em;margin-top:12px;margin-bottom:6px">🏥 健保費</div>
+                            <div style="display:flex;justify-content:space-between"><span style="color:var(--grey-500)">投保薪資級距</span><span style="font-weight:700;font-family:var(--font-num)">$<?php echo number_format((int)$md['insured_salary']); ?></span></div>
+                            <div style="display:flex;justify-content:space-between"><span style="color:var(--grey-500)">費率 × 自付比例</span><span style="font-weight:700;font-family:var(--font-num)"><?php echo round($md['health_ins_rate']*100,3); ?>% × 30%</span></div>
+                            <div style="display:flex;justify-content:space-between;background:white;border-radius:4px;padding:4px 8px;margin-top:4px;border:1px solid #eee">
+                                <span style="color:var(--purple-600);font-weight:700">公式計算</span>
+                                <span style="font-weight:700;font-family:var(--font-num);color:var(--purple-600)">$<?php echo number_format($healthCalc); ?></span>
+                            </div>
+                            <?php if ($wasAdjusted && $healthFinal !== $healthCalc): ?>
+                            <div style="display:flex;justify-content:space-between;background:#FFF3E0;border-radius:4px;padding:4px 8px;margin-top:4px;border:1px solid #FFE082">
+                                <span style="color:#E65100;font-weight:700">管理員調整後</span>
+                                <span style="font-weight:700;font-family:var(--font-num);color:#E65100">$<?php echo number_format($healthFinal); ?></span>
+                            </div>
+                            <?php endif; ?>
+                        </div>
+
+                        <!-- 實領金額 -->
+                        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;background:var(--green-50);margin:0 -0px;padding:12px 0;border-top:2px solid #A5D6A7">
+                            <span style="font-weight:700;color:var(--green-700);font-size:0.9em">實領金額</span>
+                            <span style="font-weight:700;font-family:var(--font-num);color:var(--green-700);font-size:1.2em">$<?php echo number_format((int)$md['net_salary']); ?></span>
+                        </div>
+                    </div>
+                </div>
+                <?php else: ?>
+                <!-- 尚無月結紀錄 -->
+                <div style="background:var(--amber-100);border-left:4px solid var(--amber-500);border-radius:var(--radius-sm);padding:10px 14px;font-size:0.83em;color:#E65100;margin-bottom:14px">
+                    ⚠️ 本月尚無勞健保扣項紀錄，請透過「打卡辨識」流程寫入後才會顯示實領金額
+                </div>
+                <?php endif; ?>
+                <?php endif; ?>
+
                 <!-- 編輯面板（僅管理員） -->
                 <?php if ($isAdmin && $editRow): ?>
                     <div class="edit-panel" id="edit">
@@ -1114,6 +1236,14 @@ if ($isAdmin && isset($_GET['edit_id'])) {
         const nav = document.getElementById('topbar-nav');
         nav.classList.toggle('open');
         btn.setAttribute('aria-expanded', nav.classList.contains('open'));
+    }
+
+    function toggleInsFormula(btn) {
+        const detail = btn.closest('div').closest('div').nextElementSibling;
+        if (!detail || !detail.classList.contains('ins-formula-detail')) return;
+        const open = detail.style.display === 'none';
+        detail.style.display = open ? 'block' : 'none';
+        btn.textContent = open ? '📐 收起計算公式 ▲' : '📐 查看計算公式 ▼';
     }
         // ── 編輯面板時間輸入格式化 ──────────────────────────
         function formatTime4(v) {

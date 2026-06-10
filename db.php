@@ -287,3 +287,196 @@ function shouldApplyNightAllowance(string $endTime, int $nightAllowance): bool
         return false;
     }
 }
+
+// ══════════════════════════════════════════════════════════
+//  系統設定（system_settings）
+// ══════════════════════════════════════════════════════════
+
+/**
+ * 讀取單一設定值，找不到回傳 $default
+ */
+function getSetting(string $key, string $default = ''): string
+{
+    $stmt = getDB()->prepare('SELECT `value` FROM system_settings WHERE `key` = ? LIMIT 1');
+    $stmt->execute([$key]);
+    $row = $stmt->fetch();
+    return $row ? $row['value'] : $default;
+}
+
+/**
+ * 寫入／更新設定值（upsert）
+ */
+function setSetting(string $key, string $value): void
+{
+    $stmt = getDB()->prepare(
+        'INSERT INTO system_settings (`key`, `value`)
+         VALUES (?, ?)
+         ON DUPLICATE KEY UPDATE `value` = VALUES(`value`), updated_at = NOW()'
+    );
+    $stmt->execute([$key, $value]);
+}
+
+/**
+ * 一次取得所有費率設定，回傳 assoc array
+ * 若 DB 尚未有該 key，使用程式內建預設值（首次部署保護）
+ */
+function getInsuranceRates(): array
+{
+    $defaults = [
+        'labor_ins_rate'   => '0.12',
+        'labor_ins_share'  => '0.20',
+        'health_ins_rate'  => '0.0517',
+        'health_ins_share' => '0.30',
+    ];
+    $stmt = getDB()->query(
+        "SELECT `key`, `value` FROM system_settings
+          WHERE `key` IN ('labor_ins_rate','labor_ins_share','health_ins_rate','health_ins_share')"
+    );
+    $rows = $stmt->fetchAll();
+    foreach ($rows as $row) {
+        $defaults[$row['key']] = $row['value'];
+    }
+    return [
+        'labor_ins_rate'   => (float)$defaults['labor_ins_rate'],
+        'labor_ins_share'  => (float)$defaults['labor_ins_share'],
+        'health_ins_rate'  => (float)$defaults['health_ins_rate'],
+        'health_ins_share' => (float)$defaults['health_ins_share'],
+    ];
+}
+
+// ══════════════════════════════════════════════════════════
+//  勞健保投保薪資分級表
+// ══════════════════════════════════════════════════════════
+
+/**
+ * 勞保投保薪資分級表（2025年版）
+ */
+function getLaborInsuredSalary(int $monthlySalary): int
+{
+    $brackets = [
+        27470, 28800, 30300, 31800, 33300, 34800, 36300, 38200,
+        40100, 42000, 43900, 45800, 48200, 50600, 53000, 55400,
+        57800, 60800, 63800, 66800, 69800, 72800, 76500, 80200,
+        87600, 92400, 98600,110100,120900,131700,142500,157200,
+        173200,189200,205200,
+    ];
+    foreach ($brackets as $b) {
+        if ($monthlySalary <= $b) return $b;
+    }
+    return end($brackets);
+}
+
+/**
+ * 健保投保薪資分級表（2025年版）
+ */
+function getHealthInsuredSalary(int $monthlySalary): int
+{
+    $brackets = [
+        27470, 28800, 30300, 31800, 33300, 34800, 36300, 38200,
+        40100, 42000, 43900, 45800, 48200, 50600, 53000, 55400,
+        57800, 60800, 63800, 66800, 69800, 72800, 76500, 80200,
+        87600, 92400, 98600,110100,120900,131700,142500,157200,
+        173200,189200,205200,219500,
+    ];
+    foreach ($brackets as $b) {
+        if ($monthlySalary <= $b) return $b;
+    }
+    return end($brackets);
+}
+
+/**
+ * 計算勞健保員工自付額（僅正職）
+ */
+function calcInsurance(int $monthlySalary, array $rates): array
+{
+    $laborInsured  = getLaborInsuredSalary($monthlySalary);
+    $healthInsured = getHealthInsuredSalary($monthlySalary);
+    $laborIns      = (int)ceil($laborInsured  * $rates['labor_ins_rate']  * $rates['labor_ins_share']);
+    $healthIns     = (int)ceil($healthInsured * $rates['health_ins_rate'] * $rates['health_ins_share']);
+    return [
+        'labor_insured'   => $laborInsured,
+        'labor_ins'       => $laborIns,
+        'labor_ins_rate'  => $rates['labor_ins_rate'],
+        'labor_ins_share' => $rates['labor_ins_share'],
+        'health_insured'  => $healthInsured,
+        'health_ins'      => $healthIns,
+        'health_ins_rate' => $rates['health_ins_rate'],
+        'health_ins_share'=> $rates['health_ins_share'],
+    ];
+}
+
+// ══════════════════════════════════════════════════════════
+//  monthly_deductions CRUD
+// ══════════════════════════════════════════════════════════
+
+/**
+ * 寫入／更新月結扣額（upsert）
+ */
+function saveMonthlyDeduction(array $data): void
+{
+    $sql = '
+        INSERT INTO monthly_deductions
+            (employee_name, year_month, insured_salary,
+             labor_ins_rate, labor_ins_calc, labor_ins,
+             health_ins_rate, health_ins_calc, health_ins,
+             net_salary, note)
+        VALUES
+            (:employee_name, :year_month, :insured_salary,
+             :labor_ins_rate, :labor_ins_calc, :labor_ins,
+             :health_ins_rate, :health_ins_calc, :health_ins,
+             :net_salary, :note)
+        ON DUPLICATE KEY UPDATE
+            insured_salary   = VALUES(insured_salary),
+            labor_ins_rate   = VALUES(labor_ins_rate),
+            labor_ins_calc   = VALUES(labor_ins_calc),
+            labor_ins        = VALUES(labor_ins),
+            health_ins_rate  = VALUES(health_ins_rate),
+            health_ins_calc  = VALUES(health_ins_calc),
+            health_ins       = VALUES(health_ins),
+            net_salary       = VALUES(net_salary),
+            note             = VALUES(note),
+            updated_at       = NOW()
+    ';
+    $stmt = getDB()->prepare($sql);
+    $stmt->execute([
+        ':employee_name'   => $data['employee_name'],
+        ':year_month'      => $data['year_month'],
+        ':insured_salary'  => (int)($data['insured_salary']   ?? 0),
+        ':labor_ins_rate'  => (float)($data['labor_ins_rate'] ?? 0),
+        ':labor_ins_calc'  => (int)($data['labor_ins_calc']   ?? 0),
+        ':labor_ins'       => (int)($data['labor_ins']        ?? 0),
+        ':health_ins_rate' => (float)($data['health_ins_rate'] ?? 0),
+        ':health_ins_calc' => (int)($data['health_ins_calc']  ?? 0),
+        ':health_ins'      => (int)($data['health_ins']       ?? 0),
+        ':net_salary'      => (int)($data['net_salary']       ?? 0),
+        ':note'            => $data['note'] ?? null,
+    ]);
+}
+
+/**
+ * 查詢某員工某年月的扣額紀錄，找不到回傳 null
+ */
+function getMonthlyDeduction(string $employeeName, string $yearMonth): ?array
+{
+    $stmt = getDB()->prepare(
+        'SELECT * FROM monthly_deductions
+          WHERE employee_name = ? AND year_month = ? LIMIT 1'
+    );
+    $stmt->execute([$employeeName, $yearMonth]);
+    $row = $stmt->fetch();
+    return $row ?: null;
+}
+
+/**
+ * 查詢某員工某年所有月份的扣額（年度查詢用）
+ */
+function getMonthlyDeductionsByYear(string $employeeName, string $year): array
+{
+    $stmt = getDB()->prepare(
+        "SELECT * FROM monthly_deductions
+          WHERE employee_name = ? AND year_month LIKE ?
+          ORDER BY year_month ASC"
+    );
+    $stmt->execute([$employeeName, $year . '-%']);
+    return $stmt->fetchAll();
+}
