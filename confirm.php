@@ -107,7 +107,7 @@ if ($done) {
     <?php if ($isFulltime): ?>
     <div class="sb-row">
       <span class="sb-label">月薪</span>
-      <span class="sb-val">$<?php echo number_format($r['total_salary'] - $r['total_ot_pay'] - $r['total_night_pay'] + ($r['labor_ins'] ?? 0) + ($r['health_ins'] ?? 0) - ($r['net_salary'] - ($r['total_salary'] - $r['total_ot_pay'] - $r['total_night_pay']))); ?></span>
+      <span class="sb-val">$<?php echo number_format((int)($r['wage'] ?? 0)); ?></span>
     </div>
     <?php if ($r['total_ot_pay'] > 0): ?>
     <div class="sb-row">

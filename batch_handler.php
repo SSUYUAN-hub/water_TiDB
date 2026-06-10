@@ -92,6 +92,7 @@ if ($action === 'write') {
     $_SESSION['write_result'] = [
         'name'            => $name,
         'emp_type'        => $empType,
+        'wage'            => $payload['wage'] ?? 0,
         'year_month'      => $yearMonth,
         'records'         => $records,
         'total_hours'     => $payload['total_hours'],
@@ -222,6 +223,9 @@ if (empty($records)) {
     header('Location: scan_upload.php?err=norecords');
     exit;
 }
+
+// 依日期排序（雙面合併後順序可能混亂）
+usort($records, fn($a, $b) => strcmp($a['date'], $b['date']));
 
 // 勞健保預算（正職才算）
 $insData = [];
