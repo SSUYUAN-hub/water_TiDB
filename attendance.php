@@ -1066,9 +1066,16 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
                             <div class="s-value">$<?php echo number_format($monthSummary['night_pay']); ?></div>
                         </div>
                     <?php endif; ?>
+                    <?php
+                        if ($selEmpType === 'fulltime') {
+                            $displaySalary = (int)($selEmpData['hourly_rate'] ?? 0) + $monthSummary['overtime_pay'] + $monthSummary['night_pay'];
+                        } else {
+                            $displaySalary = $monthSummary['total_salary'];
+                        }
+                    ?>
                     <div class="summary-cell salary">
                         <div class="s-label"><?php echo $queryMode === 'year' ? '年度薪資合計' : '本月薪資合計'; ?></div>
-                        <div class="s-value">$<?php echo number_format($monthSummary['total_salary']); ?></div>
+                        <div class="s-value">$<?php echo number_format($displaySalary); ?></div>
                     </div>
                 </div>
 
@@ -1119,26 +1126,19 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
                         <!-- 勞健保費用 -->
                         <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:9px 0;border-bottom:1px dashed #eee;font-size:0.88em;gap:8px">
                             <div>
-                                <div style="color:var(--grey-500)">
-                                    勞健保費用
-                                    <?php if ($wasAdjusted): ?>
-                                    <span style="font-size:0.75em;background:#FFF3E0;color:#E65100;border-radius:4px;padding:1px 6px;margin-left:4px;font-weight:600">已調整</span>
-                                    <?php endif; ?>
-                                </div>
+                                <div style="color:var(--grey-500);margin-bottom:4px">勞健保費用</div>
                                 <!-- 展開公式按鈕 -->
                                 <button type="button"
                                     style="margin-top:5px;font-size:0.75em;background:none;border:1px solid var(--grey-300);border-radius:4px;padding:3px 8px;cursor:pointer;color:var(--grey-500);font-family:var(--font-body)"
                                     onclick="toggleInsFormula(this)">📐 查看計算公式 ▼</button>
                             </div>
-                            <div style="text-align:right;flex-shrink:0">
-                                <?php if ($wasAdjusted): ?>
-                                <div style="font-size:0.75em;color:var(--red-600);text-decoration:line-through;font-family:var(--font-num)">
+                            <div style="text-align:right;flex-shrink:0;display:flex;flex-direction:column;gap:4px">
+                                <div style="font-size:0.82em;color:var(--grey-400);font-family:var(--font-num)">
                                     依法應扣：−$<?php echo number_format($calcTotal); ?>
                                 </div>
-                                <?php endif; ?>
-                                <span style="font-size:1.2em;font-weight:700;font-family:var(--font-num);color:var(--purple-600)">
-                                    −$<?php echo number_format($finalTotal); ?>
-                                </span>
+                                <div style="font-size:1.05em;font-weight:700;font-family:var(--font-num);color:var(--purple-600)">
+                                    實際扣繳：−$<?php echo number_format($finalTotal); ?>
+                                </div>
                             </div>
                         </div>
 
@@ -1355,54 +1355,61 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
             </div><!-- /results-area -->
 
             <!-- ══ 刪除確認 Modal ══ -->
-            <div id="delete-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9000;align-items:center;justify-content:center;padding:16px">
-                <div style="background:white;border-radius:var(--radius-lg);max-width:600px;width:100%;max-height:85vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,0.25)">
-                    <div style="padding:18px 20px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center">
-                        <span style="font-weight:700;font-size:1em;color:var(--red-600)">🗑️ 確認刪除</span>
-                        <button type="button" onclick="closeDeleteModal()" style="background:none;border:none;font-size:1.3em;cursor:pointer;color:var(--grey-400)">✕</button>
+            <div id="delete-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9000;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(2px)">
+                <div style="background:white;border-radius:16px;max-width:620px;width:100%;max-height:85vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+                    <div style="padding:20px 24px 16px;border-bottom:2px solid #FFEBEE;display:flex;justify-content:space-between;align-items:center">
+                        <div>
+                            <div style="font-weight:800;font-size:1.05em;color:var(--red-600)">🗑️ 確認刪除</div>
+                            <div style="font-size:0.8em;color:var(--grey-400);margin-top:3px">此操作無法復原</div>
+                        </div>
+                        <button type="button" onclick="closeDeleteModal()" style="background:var(--grey-100);border:none;width:32px;height:32px;border-radius:50%;font-size:1em;cursor:pointer;color:var(--grey-500);display:flex;align-items:center;justify-content:center">✕</button>
                     </div>
-                    <div style="padding:16px 20px;overflow-y:auto">
-                        <div style="font-size:0.88em;color:var(--grey-600);margin-bottom:12px">以下出勤紀錄將被永久刪除，此操作無法復原：</div>
-                        <div style="overflow-x:auto">
-                        <table style="width:100%;border-collapse:collapse;font-size:0.85em">
+                    <div style="padding:16px 24px;overflow-y:auto">
+                        <div style="font-size:0.85em;color:var(--grey-600);margin-bottom:14px;padding:10px 14px;background:#FFF3F3;border-radius:8px;border-left:4px solid var(--red-400)">
+                            ⚠️ 以下 <strong id="delete-count">0</strong> 筆出勤紀錄將被永久刪除：
+                        </div>
+                        <div style="overflow-x:auto;border-radius:8px;border:1px solid #FFCDD2">
+                        <table style="width:100%;border-collapse:collapse;font-size:0.88em">
                             <thead>
-                                <tr style="background:var(--red-50)">
-                                    <th style="padding:8px 10px;text-align:left;border:1px solid #FFCDD2;color:var(--red-600);white-space:nowrap">日期</th>
-                                    <th style="padding:8px 10px;text-align:center;border:1px solid #FFCDD2;color:var(--red-600);white-space:nowrap">第一段</th>
-                                    <th style="padding:8px 10px;text-align:center;border:1px solid #FFCDD2;color:var(--red-600);white-space:nowrap">第二段</th>
-                                    <th style="padding:8px 10px;text-align:center;border:1px solid #FFCDD2;color:var(--red-600);white-space:nowrap">工時</th>
-                                    <th style="padding:8px 10px;text-align:right;border:1px solid #FFCDD2;color:var(--red-600);white-space:nowrap">薪資</th>
+                                <tr style="background:#FFEBEE">
+                                    <th style="padding:10px 12px;text-align:left;color:var(--red-600);white-space:nowrap;font-weight:700">日期</th>
+                                    <th style="padding:10px 12px;text-align:center;color:var(--red-600);white-space:nowrap;font-weight:700">第一段</th>
+                                    <th style="padding:10px 12px;text-align:center;color:var(--red-600);white-space:nowrap;font-weight:700">第二段</th>
+                                    <th style="padding:10px 12px;text-align:center;color:var(--red-600);white-space:nowrap;font-weight:700">工時</th>
+                                    <th style="padding:10px 12px;text-align:right;color:var(--red-600);white-space:nowrap;font-weight:700">薪資</th>
                                 </tr>
                             </thead>
                             <tbody id="delete-modal-tbody"></tbody>
                         </table>
                         </div>
                     </div>
-                    <div style="padding:14px 20px;border-top:1px solid #eee;display:flex;gap:10px;justify-content:flex-end">
-                        <button type="button" class="btn btn-secondary" onclick="closeDeleteModal()">取消</button>
-                        <button type="button" class="btn btn-danger" onclick="confirmDelete()" id="confirm-delete-btn">確定刪除</button>
+                    <div style="padding:16px 24px;border-top:1px solid #eee;display:flex;gap:10px;justify-content:flex-end;background:#FAFAFA;border-radius:0 0 16px 16px">
+                        <button type="button" class="btn btn-secondary" onclick="closeDeleteModal()" style="min-width:80px">取消</button>
+                        <button type="button" class="btn btn-danger" onclick="confirmDelete()" id="confirm-delete-btn" style="min-width:100px">確定刪除</button>
                     </div>
                 </div>
             </div>
 
             <!-- ══ 多筆編輯 Modal ══ -->
-            <div id="bulk-edit-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9000;align-items:center;justify-content:center;padding:16px">
-                <div style="background:white;border-radius:var(--radius-lg);max-width:700px;width:100%;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,0.25)">
-                    <div style="padding:18px 20px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center">
-                        <span style="font-weight:700;font-size:1em;color:var(--green-700)">✏️ 多筆編輯出勤紀錄</span>
-                        <button type="button" onclick="closeBulkEdit()" style="background:none;border:none;font-size:1.3em;cursor:pointer;color:var(--grey-400)">✕</button>
+            <div id="bulk-edit-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9000;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(2px)">
+                <div style="background:white;border-radius:16px;max-width:720px;width:100%;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+                    <div style="padding:20px 24px 16px;border-bottom:2px solid var(--green-100);display:flex;justify-content:space-between;align-items:center">
+                        <div>
+                            <div style="font-weight:800;font-size:1.05em;color:var(--green-700)">✏️ 多筆編輯出勤紀錄</div>
+                            <div style="font-size:0.8em;color:var(--grey-400);margin-top:3px">逐筆修改後點擊「儲存所有變更」</div>
+                        </div>
+                        <button type="button" onclick="closeBulkEdit()" style="background:var(--grey-100);border:none;width:32px;height:32px;border-radius:50%;font-size:1em;cursor:pointer;color:var(--grey-500);display:flex;align-items:center;justify-content:center">✕</button>
                     </div>
-                    <div style="padding:16px 20px;overflow-y:auto;flex:1">
-                        <div style="font-size:0.85em;color:var(--grey-500);margin-bottom:14px">逐筆修改後點擊「儲存所有變更」</div>
+                    <div style="padding:16px 24px;overflow-y:auto;flex:1">
                         <form id="bulk-edit-form" method="post">
                             <input type="hidden" name="action" value="bulk_edit">
                             <?php echo implode('', array_map(fn($k) => '<input type="hidden" name="preserve_' . htmlspecialchars($k) . '" value="' . htmlspecialchars($_GET[$k] ?? '') . '">', ['emp','ym','year','mode','searched'])); ?>
-                            <div id="bulk-edit-rows" style="display:flex;flex-direction:column;gap:12px"></div>
+                            <div id="bulk-edit-rows" style="display:flex;flex-direction:column;gap:14px"></div>
                         </form>
                     </div>
-                    <div style="padding:14px 20px;border-top:1px solid #eee;display:flex;gap:10px;justify-content:flex-end">
-                        <button type="button" class="btn btn-secondary" onclick="closeBulkEdit()">取消</button>
-                        <button type="button" class="btn btn-primary" onclick="submitBulkEdit()">💾 儲存所有變更</button>
+                    <div style="padding:16px 24px;border-top:1px solid #eee;display:flex;gap:10px;justify-content:flex-end;background:#FAFAFA;border-radius:0 0 16px 16px">
+                        <button type="button" class="btn btn-secondary" onclick="closeBulkEdit()" style="min-width:80px">取消</button>
+                        <button type="button" class="btn btn-primary" onclick="submitBulkEdit()" style="min-width:120px">💾 儲存所有變更</button>
                     </div>
                 </div>
             </div>
@@ -1489,7 +1496,10 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
             pendingDeleteIds = rows.map(r => parseInt(r.dataset.id));
             renderDeleteRows(rows);
         }
+        const cnt = document.getElementById('delete-count');
+        if (cnt) cnt.textContent = pendingDeleteIds.length;
         document.getElementById('delete-modal').style.display = 'flex';
+        document.body.style.overflow = 'hidden';
     }
     function renderDeleteRows(rows) {
         const tbody = document.getElementById('delete-modal-tbody');
@@ -1506,6 +1516,7 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
     }
     function closeDeleteModal() {
         document.getElementById('delete-modal').style.display = 'none';
+        document.body.style.overflow = '';
         pendingDeleteIds = [];
     }
     function confirmDelete() {
@@ -1534,6 +1545,7 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
     function openBulkEdit() {
         const rows = getCheckedRows();
         if (rows.length === 0) return;
+        document.body.style.overflow = 'hidden';
         const container = document.getElementById('bulk-edit-rows');
         container.innerHTML = rows.map(tr => {
             const d = tr.dataset;
@@ -1579,15 +1591,22 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
     }
     function closeBulkEdit() {
         document.getElementById('bulk-edit-modal').style.display = 'none';
+        document.body.style.overflow = '';
     }
     function submitBulkEdit() {
         const form = document.getElementById('bulk-edit-form');
-        // 保留查詢參數
+        // 從 URL 補齊查詢參數（preserve_ hidden input 已在 PHP 端填入）
+        const params = new URLSearchParams(location.search);
         ['emp','ym','year','mode','searched'].forEach(k => {
-            const v = new URLSearchParams(location.search).get(k);
+            const v = params.get(k);
             if (v) {
-                let inp = form.querySelector('[name="preserve_'+k+'"]');
-                if (!inp) { inp = document.createElement('input'); inp.type='hidden'; inp.name=k; form.appendChild(inp); }
+                let inp = form.querySelector('[name="' + k + '"]');
+                if (!inp) {
+                    inp = document.createElement('input');
+                    inp.type = 'hidden';
+                    inp.name = k;
+                    form.appendChild(inp);
+                }
                 inp.value = v;
             }
         });
