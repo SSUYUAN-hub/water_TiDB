@@ -739,7 +739,7 @@ function checkNightShift(string $endTime): bool {
         <div style="font-size:0.88em;font-weight:700;color:var(--grey-700);margin-bottom:12px">📤 確認後，選擇下一步：</div>
         <div style="display:flex;flex-direction:column;gap:10px">
             <button type="submit" class="btn btn-primary btn-full" onclick="return confirmSubmit()" style="justify-content:center">
-                ✅ 確認完成，寫入資料庫
+                ✅ 掃描完成，進入確認畫面
             </button>
             <button type="button" class="btn btn-purple btn-full" onclick="submitForNextSide()" style="justify-content:center;background:#7C4DFF;color:white;border:none;border-radius:var(--radius-sm);padding:12px 16px;font-weight:700;cursor:pointer;font-size:0.95em">
                 📷 繼續辨識另一面（雙面卡片）

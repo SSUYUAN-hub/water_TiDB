@@ -423,10 +423,12 @@ $netSalary      = $p['net_salary']       ?? $totalSalary;
       <div class="s-value">$<?php echo number_format($totalNightPay); ?></div>
     </div>
     <?php endif; ?>
+    <?php if (!$isFulltime): ?>
     <div class="summary-cell salary">
-      <div class="s-label"><?php echo $isFulltime ? '加班費小計' : '本月薪資'; ?></div>
+      <div class="s-label">本月薪資</div>
       <div class="s-value">$<?php echo number_format($totalSalary); ?></div>
     </div>
+    <?php endif; ?>
   </div>
 
   <!-- 薪資確認 form -->
