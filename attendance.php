@@ -1069,30 +1069,30 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
                         </div>
 
                         <!-- 計算公式展開區 -->
-                        <div class="ins-formula-detail" style="display:none;background:#F8F9FA;border-bottom:1px dashed #eee;padding:12px 14px;font-size:0.82em;color:var(--grey-700);line-height:2">
-                            <div style="font-weight:700;color:var(--grey-500);font-size:0.8em;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px">🛡️ 勞保費</div>
-                            <div style="display:flex;justify-content:space-between"><span style="color:var(--grey-500)">投保薪資級距</span><span style="font-weight:700;font-family:var(--font-num)">$<?php echo number_format((int)$md['insured_salary']); ?></span></div>
-                            <div style="display:flex;justify-content:space-between"><span style="color:var(--grey-500)">費率 × 自付比例</span><span style="font-weight:700;font-family:var(--font-num)"><?php echo round($md['labor_ins_rate']*100,2); ?>% × 20%</span></div>
-                            <div style="display:flex;justify-content:space-between;background:white;border-radius:4px;padding:4px 8px;margin-top:4px;border:1px solid #eee">
+                        <div class="ins-formula-detail" style="display:none;background:#F8F9FA;border-bottom:1px dashed #eee;padding:14px 16px;font-size:0.92em;color:var(--grey-700);line-height:2">
+                            <div style="font-weight:700;color:var(--grey-500);font-size:0.85em;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">🛡️ 勞保費</div>
+                            <div style="display:flex;justify-content:space-between;padding:2px 0"><span style="color:var(--grey-500)">投保薪資級距</span><span style="font-weight:700;font-family:var(--font-num)">$<?php echo number_format((int)$md['insured_salary']); ?></span></div>
+                            <div style="display:flex;justify-content:space-between;padding:2px 0"><span style="color:var(--grey-500)">費率 × 自付比例</span><span style="font-weight:700;font-family:var(--font-num)"><?php echo round($md['labor_ins_rate']*100,2); ?>% × 20%</span></div>
+                            <div style="display:flex;justify-content:space-between;background:white;border-radius:6px;padding:7px 10px;margin-top:6px;border:1px solid #eee">
                                 <span style="color:var(--purple-600);font-weight:700">公式計算</span>
                                 <span style="font-weight:700;font-family:var(--font-num);color:var(--purple-600)">$<?php echo number_format($laborCalc); ?></span>
                             </div>
                             <?php if ($wasAdjusted && $laborFinal !== $laborCalc): ?>
-                            <div style="display:flex;justify-content:space-between;background:#FFF3E0;border-radius:4px;padding:4px 8px;margin-top:4px;border:1px solid #FFE082">
+                            <div style="display:flex;justify-content:space-between;background:#FFF3E0;border-radius:6px;padding:7px 10px;margin-top:4px;border:1px solid #FFE082">
                                 <span style="color:#E65100;font-weight:700">管理員調整後</span>
                                 <span style="font-weight:700;font-family:var(--font-num);color:#E65100">$<?php echo number_format($laborFinal); ?></span>
                             </div>
                             <?php endif; ?>
 
-                            <div style="font-weight:700;color:var(--grey-500);font-size:0.8em;text-transform:uppercase;letter-spacing:0.06em;margin-top:12px;margin-bottom:6px">🏥 健保費</div>
-                            <div style="display:flex;justify-content:space-between"><span style="color:var(--grey-500)">投保薪資級距</span><span style="font-weight:700;font-family:var(--font-num)">$<?php echo number_format((int)$md['insured_salary']); ?></span></div>
-                            <div style="display:flex;justify-content:space-between"><span style="color:var(--grey-500)">費率 × 自付比例</span><span style="font-weight:700;font-family:var(--font-num)"><?php echo round($md['health_ins_rate']*100,3); ?>% × 30%</span></div>
-                            <div style="display:flex;justify-content:space-between;background:white;border-radius:4px;padding:4px 8px;margin-top:4px;border:1px solid #eee">
+                            <div style="font-weight:700;color:var(--grey-500);font-size:0.85em;text-transform:uppercase;letter-spacing:0.06em;margin-top:16px;margin-bottom:8px">🏥 健保費</div>
+                            <div style="display:flex;justify-content:space-between;padding:2px 0"><span style="color:var(--grey-500)">投保薪資級距</span><span style="font-weight:700;font-family:var(--font-num)">$<?php echo number_format((int)$md['insured_salary']); ?></span></div>
+                            <div style="display:flex;justify-content:space-between;padding:2px 0"><span style="color:var(--grey-500)">費率 × 自付比例</span><span style="font-weight:700;font-family:var(--font-num)"><?php echo round($md['health_ins_rate']*100,3); ?>% × 30%</span></div>
+                            <div style="display:flex;justify-content:space-between;background:white;border-radius:6px;padding:7px 10px;margin-top:6px;border:1px solid #eee">
                                 <span style="color:var(--purple-600);font-weight:700">公式計算</span>
                                 <span style="font-weight:700;font-family:var(--font-num);color:var(--purple-600)">$<?php echo number_format($healthCalc); ?></span>
                             </div>
                             <?php if ($wasAdjusted && $healthFinal !== $healthCalc): ?>
-                            <div style="display:flex;justify-content:space-between;background:#FFF3E0;border-radius:4px;padding:4px 8px;margin-top:4px;border:1px solid #FFE082">
+                            <div style="display:flex;justify-content:space-between;background:#FFF3E0;border-radius:6px;padding:7px 10px;margin-top:4px;border:1px solid #FFE082">
                                 <span style="color:#E65100;font-weight:700">管理員調整後</span>
                                 <span style="font-weight:700;font-family:var(--font-num);color:#E65100">$<?php echo number_format($healthFinal); ?></span>
                             </div>
