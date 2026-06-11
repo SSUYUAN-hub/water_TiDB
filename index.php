@@ -298,7 +298,8 @@ if ($isAdmin) {
       <div class="menu-arrow">→</div>
     </a>
 
-    <!-- 打卡辨識（全員可用） -->
+    <?php if ($isAdmin): ?>
+    <!-- 打卡辨識（管理員限定） -->
     <a href="scan_upload.php" class="menu-card blue">
       <div class="menu-icon">📷</div>
       <div class="menu-title">打卡辨識</div>
@@ -306,7 +307,6 @@ if ($isAdmin) {
       <div class="menu-arrow">→</div>
     </a>
 
-    <?php if ($isAdmin): ?>
     <!-- 員工管理（管理員限定） -->
     <a href="admin.php" class="menu-card purple">
       <div class="menu-icon">👥</div>
@@ -334,7 +334,7 @@ if ($isAdmin) {
     </a>
     <?php else: ?>
     <!-- 員工：修改密碼 -->
-    <a href="attendance.php#change-password" class="menu-card amber">
+    <a href="change_password.php" class="menu-card amber">
       <div class="menu-icon">🔐</div>
       <div class="menu-title">修改密碼</div>
       <div class="menu-desc">修改自己的登入密碼</div>

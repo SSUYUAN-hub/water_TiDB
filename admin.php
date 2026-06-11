@@ -183,10 +183,10 @@ $hourlyEmps   = array_filter($employees, fn($e) => $e['type'] === 'hourly');
 
 /* 員工表格 */
 .emp-table { width:100%; border-collapse:collapse; font-size:0.92em; }
-.emp-table th { padding:10px 12px; text-align:left; border:1px solid #C8E6C9;
+.emp-table th {text-align: center; padding:10px 12px; text-align:left; border:1px solid #C8E6C9;
   background:var(--green-50); color:var(--green-700); font-weight:600; white-space:nowrap; }
-.emp-table.pt-table th { background:#F3E5F5; border-color:#CE93D8; color:var(--purple-600); }
-.emp-table td { padding:9px 12px; border:1px solid #eee; vertical-align:middle; white-space:nowrap; }
+.emp-table.pt-table th {text-align: center; background:#F3E5F5; border-color:#CE93D8; color:var(--purple-600); }
+.emp-table td {text-align: center; padding:9px 12px; border:1px solid #eee; vertical-align:middle; white-space:nowrap; }
 .emp-table tr:nth-child(even) td { background:#FAFAFA; }
 .emp-table tr:hover td { background:#F1F8E9; }
 .emp-table.pt-table tr:hover td { background:#F8F0FF; }
