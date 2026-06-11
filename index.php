@@ -168,12 +168,14 @@ if ($isAdmin) {
     .menu-icon {
       font-size: 2.2em;
       line-height: 1;
+      margin: auto;
     }
     .menu-title {
       font-size: 1.05em;
       font-weight: 700;
       color: var(--grey-900);
       margin-bottom: 2px;
+      margin: auto;
     }
     .menu-desc {
       font-size: 0.88em;
