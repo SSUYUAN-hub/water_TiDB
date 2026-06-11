@@ -1343,7 +1343,7 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
                     </div>
                     <div style="overflow-x:auto;padding:0 4px 4px">
                         <table class="att-table">
-                            <thead>
+                            <thead<?php echo $queryMode === 'year' ? ' style="display:none"' : ''; ?>>
                                 <tr>
                                     <?php if ($isAdmin): ?><th style="width:36px"><input type="checkbox" id="chk-all" onchange="toggleAll(this)" title="全選"></th><?php endif; ?>
                                     <th>日期</th>
@@ -1370,6 +1370,16 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
                                             <span id="arrow-<?php echo $ymId; ?>" style="margin-right:8px">▶</span>
                                             📅 <?php echo $ymRoc; ?>（<?php echo count($ymRows); ?> 天）
                                         </td>
+                                    </tr>
+                                    <tr class="ym-row ym-row-<?php echo $ymId; ?> ym-subheader" style="display:none;background:var(--grey-50)">
+                                        <?php if ($isAdmin): ?><th style="width:36px"></th><?php endif; ?>
+                                        <th>日期</th><th>第一段</th><th>第二段</th>
+                                        <?php if ($selEmpType === 'fulltime'): ?><th>有無休息</th><?php endif; ?>
+                                        <th>工時(h)</th>
+                                        <?php if ($selEmpType === 'fulltime'): ?><th>加班時數</th><th>加班費</th><?php endif; ?>
+                                        <?php if ($selNightAllow > 0): ?><th>🌙 津貼</th><?php endif; ?>
+                                        <th><?php echo $selEmpType === 'fulltime' ? '加班費合計' : '當日薪資'; ?></th>
+                                        <?php if ($isAdmin): ?><th>操作</th><?php endif; ?>
                                     </tr>
                                     <?php foreach ($ymRows as $att): ?>
                                     <tr class="ym-row ym-row-<?php echo $ymId; ?>" style="display:none" data-id="<?php echo $att['id']; ?>"
