@@ -104,13 +104,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = $stmt->rowCount() > 0 ? "🗑️ 帳號「{$uname}」已刪除" : '找不到該帳號';
             $msgType = $stmt->rowCount() > 0 ? 'success' : 'error';
         }
-    }
-}
 
     // ── 審核申請：通過 ──
     } elseif ($action === 'approve_request') {
-        $reqId   = (int)($_POST['req_id']       ?? 0);
-        $urole   = $_POST['req_role']            ?? 'staff';
+        $reqId    = (int)($_POST['req_id'] ?? 0);
+        $urole    = $_POST['req_role']     ?? 'staff';
         $uempname = trim($_POST['req_employee_name'] ?? '');
         $req = getDB()->prepare('SELECT * FROM account_requests WHERE id = ? AND status = "pending" LIMIT 1');
         $req->execute([$reqId]);
@@ -119,14 +117,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = '找不到該申請或已處理'; $msgType = 'error';
         } else {
             try {
-                $ins = getDB()->prepare(
-                    'INSERT INTO users (username, password_hash, role, employee_name)
-                     VALUES (?, ?, ?, ?)'
-                );
-                $ins->execute([
-                    $row['username'], $row['password_hash'], $urole,
-                    ($urole === 'staff' && $uempname !== '') ? $uempname : null,
-                ]);
+                $ins = getDB()->prepare('INSERT INTO users (username, password_hash, role, employee_name) VALUES (?, ?, ?, ?)');
+                $ins->execute([$row['username'], $row['password_hash'], $urole,
+                    ($urole === 'staff' && $uempname !== '') ? $uempname : null]);
                 getDB()->prepare('UPDATE account_requests SET status="approved" WHERE id=?')->execute([$reqId]);
                 $message = "✅ 已核准帳號「{$row['username']}」"; $msgType = 'success';
             } catch (PDOException $e) {
@@ -146,15 +139,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = '找不到該申請或已處理'; $msgType = 'error';
         } else {
             try {
-                // 寫入黑名單
-                $bl = getDB()->prepare(
-                    'INSERT INTO account_blacklist (real_name, id_number, reason)
-                     VALUES (?, ?, ?)
-                     ON DUPLICATE KEY UPDATE rejected_at=NOW(), reason=VALUES(reason)'
-                );
+                $bl = getDB()->prepare('INSERT INTO account_blacklist (real_name, id_number, reason) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE rejected_at=NOW(), reason=VALUES(reason)');
                 $bl->execute([$row['real_name'], $row['id_number'], $reason ?: null]);
-                getDB()->prepare('UPDATE account_requests SET status="rejected", reject_reason=? WHERE id=?')
-                       ->execute([$reason ?: null, $reqId]);
+                getDB()->prepare('UPDATE account_requests SET status="rejected", reject_reason=? WHERE id=?')->execute([$reason ?: null, $reqId]);
                 $message = "🚫 已拒絕「{$row['real_name']}」的申請並加入黑名單"; $msgType = 'success';
             } catch (PDOException $e) {
                 $message = '拒絕失敗：'.$e->getMessage(); $msgType = 'error';
@@ -171,28 +158,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 render_page:
 // 確保資料表存在
-getDB()->exec("
-    CREATE TABLE IF NOT EXISTS account_requests (
-        id           INT AUTO_INCREMENT PRIMARY KEY,
-        username     VARCHAR(60)  NOT NULL,
-        password_hash VARCHAR(255) NOT NULL,
-        real_name    VARCHAR(60)  NOT NULL,
-        id_number    VARCHAR(20)  NOT NULL,
-        phone        VARCHAR(30)  NOT NULL,
-        status       ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
-        reject_reason VARCHAR(255) DEFAULT NULL,
-        created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-    ) DEFAULT CHARSET=utf8mb4
-");
-getDB()->exec("
-    CREATE TABLE IF NOT EXISTS account_blacklist (
-        id           INT AUTO_INCREMENT PRIMARY KEY,
-        real_name    VARCHAR(60)  NOT NULL,
-        id_number    VARCHAR(20)  NOT NULL UNIQUE,
-        rejected_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        reason       VARCHAR(255) DEFAULT NULL
-    ) DEFAULT CHARSET=utf8mb4
-");
+getDB()->exec("CREATE TABLE IF NOT EXISTS account_requests (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(60) NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    real_name VARCHAR(60) NOT NULL,
+    id_number VARCHAR(20) NOT NULL,
+    phone VARCHAR(30) NOT NULL,
+    status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+    reject_reason VARCHAR(255) DEFAULT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) DEFAULT CHARSET=utf8mb4");
+getDB()->exec("CREATE TABLE IF NOT EXISTS account_blacklist (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    real_name VARCHAR(60) NOT NULL,
+    id_number VARCHAR(20) NOT NULL UNIQUE,
+    rejected_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    reason VARCHAR(255) DEFAULT NULL
+) DEFAULT CHARSET=utf8mb4");
 
 $employees = getEmployees();
 
@@ -210,15 +193,11 @@ if ($isSysAdmin) {
 }
 
 // 待審核申請
-$pendingRequests = getDB()->query(
-    "SELECT * FROM account_requests WHERE status='pending' ORDER BY created_at ASC"
-)->fetchAll();
-$pendingCount = count($pendingRequests);
+$pendingRequests = getDB()->query("SELECT * FROM account_requests WHERE status='pending' ORDER BY created_at ASC")->fetchAll();
+$pendingCount    = count($pendingRequests);
 
 // 黑名單
-$blacklist = getDB()->query(
-    'SELECT * FROM account_blacklist ORDER BY rejected_at DESC'
-)->fetchAll();
+$blacklist = getDB()->query('SELECT * FROM account_blacklist ORDER BY rejected_at DESC')->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="zh-TW">
@@ -285,40 +264,18 @@ $blacklist = getDB()->query(
 .inline-form input:focus { outline: none; border-color: var(--green-600); }
 .btn-add { background: var(--green-700); color: white; min-height: 40px; }
 
-/* 申請審核 */
 .req-table { width:100%; border-collapse:collapse; font-size:0.9em; }
-.req-table th {
-  background:var(--amber-100); color:#92400E;
-  padding:9px 12px; text-align:left;
-  border:1px solid #FDE68A; font-weight:600; white-space:nowrap;
-}
-.req-table td { padding:8px 10px; border:1px solid #eee; vertical-align:middle; }
+.req-table th { background:var(--amber-100);color:#92400E;padding:9px 12px;text-align:left;border:1px solid #FDE68A;font-weight:600;white-space:nowrap; }
+.req-table td { padding:8px 10px;border:1px solid #eee;vertical-align:middle; }
 .req-table tr:nth-child(even) td { background:#FFFBF0; }
-
-.approve-form { display:flex; gap:6px; flex-wrap:wrap; align-items:flex-end; }
-.approve-form select, .approve-form input[type="text"] {
-  padding:6px 8px; border:1.5px solid var(--grey-300);
-  border-radius:6px; font-size:0.82em; font-family:var(--font-body);
-}
-.reject-wrap { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
-.reject-wrap input[type="text"] {
-  padding:6px 8px; border:1.5px solid var(--grey-300);
-  border-radius:6px; font-size:0.82em; font-family:var(--font-body); width:120px;
-}
-.pending-badge {
-  display:inline-flex; align-items:center; justify-content:center;
-  background:var(--red-500); color:white;
-  font-size:0.75em; font-weight:700;
-  border-radius:50%; width:20px; height:20px;
-  margin-left:6px; line-height:1;
-}
-.bl-table { width:100%; border-collapse:collapse; font-size:0.9em; }
-.bl-table th {
-  background:#FFF3F3; color:var(--red-600);
-  padding:9px 12px; text-align:left;
-  border:1px solid #FFCDD2; font-weight:600; white-space:nowrap;
-}
-.bl-table td { padding:8px 10px; border:1px solid #eee; vertical-align:middle; }
+.approve-form { display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end; }
+.approve-form select,.approve-form input[type="text"] { padding:6px 8px;border:1.5px solid var(--grey-300);border-radius:6px;font-size:0.82em;font-family:var(--font-body); }
+.reject-wrap { display:flex;gap:6px;align-items:center;flex-wrap:wrap; }
+.reject-wrap input[type="text"] { padding:6px 8px;border:1.5px solid var(--grey-300);border-radius:6px;font-size:0.82em;font-family:var(--font-body);width:110px; }
+.pending-badge { display:inline-flex;align-items:center;justify-content:center;background:var(--red-500);color:white;font-size:0.75em;font-weight:700;border-radius:50%;width:20px;height:20px;margin-left:6px;line-height:1; }
+.bl-table { width:100%;border-collapse:collapse;font-size:0.9em; }
+.bl-table th { background:#FFF3F3;color:var(--red-600);padding:9px 12px;text-align:left;border:1px solid #FFCDD2;font-weight:600;white-space:nowrap; }
+.bl-table td { padding:8px 10px;border:1px solid #eee;vertical-align:middle; }
 </style>
 </head>
 <body>
@@ -391,25 +348,21 @@ $blacklist = getDB()->query(
   </div>
 
   <!-- ── 待審核申請 ── -->
-  <?php if ($pendingCount > 0): ?>
-  <div class="card" style="border:2px solid var(--amber-400)">
-    <div class="card-title" style="color:#92400E">
+  <div class="card" style="<?php echo $pendingCount > 0 ? 'border:2px solid var(--amber-400)' : ''; ?>">
+    <div class="card-title" style="<?php echo $pendingCount > 0 ? 'color:#92400E' : ''; ?>">
       ⏳ 待審核帳號申請
+      <?php if ($pendingCount > 0): ?>
       <span class="pending-badge"><?php echo $pendingCount; ?></span>
+      <?php endif; ?>
     </div>
+    <?php if ($pendingCount === 0): ?>
+    <div style="text-align:center;padding:14px;color:var(--grey-400);font-size:0.9em">目前沒有待審核的申請</div>
+    <?php else: ?>
     <div style="overflow-x:auto">
     <table class="req-table">
-      <thead>
-        <tr>
-          <th>申請時間</th>
-          <th>帳號</th>
-          <th>姓名</th>
-          <th>身分證字號</th>
-          <th>電話</th>
-          <th>審核通過</th>
-          <th>拒絕</th>
-        </tr>
-      </thead>
+      <thead><tr>
+        <th>申請時間</th><th>帳號</th><th>姓名</th><th>身分證字號</th><th>電話</th><th>審核通過</th><th>拒絕</th>
+      </tr></thead>
       <tbody>
       <?php foreach ($pendingRequests as $req): ?>
       <tr>
@@ -421,13 +374,11 @@ $blacklist = getDB()->query(
         <td>
           <form method="post" class="approve-form"
                 onsubmit="return confirm('確定核准「<?php echo htmlspecialchars($req['username']); ?>」的申請？')">
-            <input type="hidden" name="action"  value="approve_request">
-            <input type="hidden" name="req_id"  value="<?php echo $req['id']; ?>">
+            <input type="hidden" name="action" value="approve_request">
+            <input type="hidden" name="req_id" value="<?php echo $req['id']; ?>">
             <select name="req_role" id="req-role-<?php echo $req['id']; ?>"
                     onchange="toggleReqEmp(<?php echo $req['id']; ?>)">
-              <?php if ($isSysAdmin): ?>
-              <option value="admin">👑 系統管理</option>
-              <?php endif; ?>
+              <?php if ($isSysAdmin): ?><option value="admin">👑 系統管理</option><?php endif; ?>
               <option value="goddess_plus">✨ 女神Plus</option>
               <option value="staff" selected>👤 員工</option>
             </select>
@@ -448,7 +399,7 @@ $blacklist = getDB()->query(
                 onsubmit="return confirm('確定拒絕「<?php echo htmlspecialchars($req['real_name']); ?>」並加入黑名單？')">
             <input type="hidden" name="action" value="reject_request">
             <input type="hidden" name="req_id" value="<?php echo $req['id']; ?>">
-            <input type="text" name="reject_reason" placeholder="拒絕原因（選填）">
+            <input type="text" name="reject_reason" placeholder="原因（選填）">
             <button type="submit" class="btn btn-danger btn-sm">🚫 拒絕</button>
           </form>
         </td>
@@ -457,13 +408,8 @@ $blacklist = getDB()->query(
       </tbody>
     </table>
     </div>
+    <?php endif; ?>
   </div>
-  <?php else: ?>
-  <div class="card" style="border:1px solid var(--grey-200)">
-    <div class="card-title">⏳ 待審核帳號申請</div>
-    <div style="text-align:center;padding:16px;color:var(--grey-400);font-size:0.9em">目前沒有待審核的申請</div>
-  </div>
-  <?php endif; ?>
 
   <!-- ── 黑名單 ── -->
   <?php if (!empty($blacklist)): ?>
@@ -471,15 +417,7 @@ $blacklist = getDB()->query(
     <div class="card-title" style="color:var(--red-600)">🚫 拒絕黑名單（共 <?php echo count($blacklist); ?> 筆）</div>
     <div style="overflow-x:auto">
     <table class="bl-table">
-      <thead>
-        <tr>
-          <th>姓名</th>
-          <th>身分證字號</th>
-          <th>拒絕時間</th>
-          <th>原因</th>
-          <th>操作</th>
-        </tr>
-      </thead>
+      <thead><tr><th>姓名</th><th>身分證字號</th><th>拒絕時間</th><th>原因</th><th>操作</th></tr></thead>
       <tbody>
       <?php foreach ($blacklist as $bl): ?>
       <tr>
@@ -637,10 +575,8 @@ function toggleReqEmp(reqId) {
   if (!sel || !emp) return;
   emp.style.display = sel.value === 'staff' ? '' : 'none';
 }
-// 初始化所有申請列的員工選單顯示狀態
 document.querySelectorAll('[id^="req-role-"]').forEach(sel => {
-  const id = sel.id.replace('req-role-', '');
-  toggleReqEmp(id);
+  toggleReqEmp(sel.id.replace('req-role-', ''));
 });
 
 function filterUsers(kw) {

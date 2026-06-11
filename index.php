@@ -110,12 +110,12 @@ if ($isAdmin) {
 
     /* 功能選單區塊標題 */
     .section-label {
-      font-size: 0.75em;
+      font-size: 0.82em;
       font-weight: 700;
-      color: var(--grey-500);
-      letter-spacing: 0.08em;
+      color: var(--grey-600);
+      letter-spacing: 0.06em;
       text-transform: uppercase;
-      margin-bottom: 10px;
+      margin-bottom: 12px;
       padding-left: 2px;
     }
 
@@ -133,13 +133,13 @@ if ($isAdmin) {
     .menu-card {
       background: white;
       border-radius: var(--radius-md);
-      padding: 22px 18px;
+      padding: 24px 20px;
       box-shadow: var(--card-shadow);
       text-decoration: none;
       color: inherit;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 6px;
       transition: all 0.2s ease;
       border: 1.5px solid transparent;
       position: relative;
@@ -166,25 +166,32 @@ if ($isAdmin) {
     .menu-card.amber::before  { background: var(--amber-500); }
 
     .menu-icon {
-      font-size: 2em;
+      font-size: 2.2em;
       line-height: 1;
     }
     .menu-title {
-      font-size: 1em;
+      font-size: 1.05em;
       font-weight: 700;
       color: var(--grey-900);
+      margin-bottom: 2px;
     }
     .menu-desc {
-      font-size: 0.78em;
-      color: var(--grey-500);
-      line-height: 1.5;
+      font-size: 0.88em;
+      color: var(--grey-600);
+      line-height: 1.6;
+      flex: 1;
     }
     .menu-arrow {
-      font-size: 0.8em;
-      color: var(--grey-300);
-      margin-top: auto;
+      font-size: 0.85em;
+      font-weight: 700;
+      color: var(--grey-400);
+      margin-top: 8px;
       align-self: flex-end;
     }
+    .menu-card.green  .menu-arrow { color: var(--green-600); }
+    .menu-card.blue   .menu-arrow { color: var(--blue-700); }
+    .menu-card.purple .menu-arrow { color: var(--purple-600); }
+    .menu-card.amber  .menu-arrow { color: var(--amber-500); }
 
     /* 登出按鈕 */
     .logout-wrap {
