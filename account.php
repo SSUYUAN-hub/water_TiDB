@@ -207,7 +207,7 @@ $blacklist = getDB()->query('SELECT * FROM account_blacklist ORDER BY rejected_a
 <title>帳號管理 — 薪資結算系統</title>
 <link rel="stylesheet" href="responsive.css">
 <style>
-.main-wrap { max-width: 1000px; }
+.main-wrap { max-width: 1400px; }
 
 /* ── 漢堡選單：手機版向下滑出 dropdown ── */
 .topbar { position: relative; }
@@ -248,10 +248,10 @@ $blacklist = getDB()->query('SELECT * FROM account_blacklist ORDER BY rejected_a
 .user-table { width: 100%; border-collapse: collapse; font-size: 0.88em; }
 .user-table th {
   background: var(--green-50); color: var(--green-700);
-  padding: 9px 12px; text-align: left;
+  padding: 9px 12px; text-align: center;
   border: 1px solid #C8E6C9; font-weight: 600; white-space: nowrap;
 }
-.user-table td { padding: 8px 5px; border: 1px solid #eee; vertical-align: middle; text-align: center;}
+.user-table td { padding: 8px 10px; border: 1px solid #eee; vertical-align: middle; text-align: center; white-space: nowrap; }
 .user-table tr:nth-child(even) td { background: #FAFAFA; }
 
 .inline-form { display: flex; gap: 6px; align-items: center; flex-wrap: nowrap; }
@@ -259,28 +259,20 @@ $blacklist = getDB()->query('SELECT * FROM account_blacklist ORDER BY rejected_a
 .inline-form input[type="password"] {
   padding: 6px 9px; border: 1.5px solid var(--grey-300);
   border-radius: 6px; font-size: 0.85em;
-  font-family: var(--font-body); width: 130px; flex-shrink: 1;
+  font-family: var(--font-body); width: 130px;
 }
 .inline-form input:focus { outline: none; border-color: var(--green-600); }
 .btn-add { background: var(--green-700); color: white; min-height: 40px; }
 
-.req-table { width:100%; border-collapse:collapse; font-size:0.92em; }
-.req-table th { background:var(--amber-100);color:#92400E;padding:10px 12px;text-align:left;border:1px solid #FDE68A;font-weight:600;white-space:nowrap; }
-.req-table td { padding:9px 10px;border:1px solid #eee;vertical-align:middle;white-space:nowrap; }
-.req-table td.name-cell { white-space:nowrap; }
-.req-table td.time-cell { font-size:0.9em;color:var(--grey-700);white-space:nowrap;font-weight:500; }
+.req-table { width:100%; border-collapse:collapse; font-size:0.9em; }
+.req-table th { background:var(--amber-100);color:#92400E;padding:9px 12px;text-align:center;border:1px solid #FDE68A;font-weight:600;white-space:nowrap; }
+.req-table td { padding:8px 10px;border:1px solid #eee;vertical-align:middle;white-space:nowrap; }
 .req-table tr:nth-child(even) td { background:#FFFBF0; }
 .approve-form { display:flex;gap:6px;flex-wrap:nowrap;align-items:center; }
-.approve-form select { padding:6px 8px;border:1.5px solid var(--grey-300);border-radius:6px;font-size:0.82em;font-family:var(--font-body);flex-shrink:0; }
+.approve-form select,.approve-form input[type="text"] { padding:6px 8px;border:1.5px solid var(--grey-300);border-radius:6px;font-size:0.82em;font-family:var(--font-body); }
 .reject-wrap { display:flex;gap:6px;align-items:center;flex-wrap:nowrap; }
-.reject-wrap input[type="text"] { padding:6px 8px;border:1.5px solid var(--grey-300);border-radius:6px;font-size:0.82em;font-family:var(--font-body);width:100px;flex-shrink:1; }
+.reject-wrap input[type="text"] { padding:6px 8px;border:1.5px solid var(--grey-300);border-radius:6px;font-size:0.82em;font-family:var(--font-body);width:110px; }
 .pending-badge { display:inline-flex;align-items:center;justify-content:center;background:var(--red-500);color:white;font-size:0.75em;font-weight:700;border-radius:50%;width:20px;height:20px;margin-left:6px;line-height:1; }
-/* 帳號欄位最小寬度 */
-.req-table td.username-cell { min-width:120px; }
-/* inline-form 按鈕同行 */
-.inline-form { display:flex;gap:6px;align-items:center;flex-wrap:nowrap; }
-.inline-form input[type="text"],
-.inline-form input[type="password"] { flex-shrink:1; }
 .bl-table { width:100%;border-collapse:collapse;font-size:0.9em; }
 .bl-table th { background:#FFF3F3;color:var(--red-600);padding:9px 12px;text-align:left;border:1px solid #FFCDD2;font-weight:600;white-space:nowrap; }
 .bl-table td { padding:8px 10px;border:1px solid #eee;vertical-align:middle; }
@@ -374,9 +366,9 @@ $blacklist = getDB()->query('SELECT * FROM account_blacklist ORDER BY rejected_a
       <tbody>
       <?php foreach ($pendingRequests as $req): ?>
       <tr>
-        <td class="time-cell"><?php echo $req['created_at']; ?></td>
-        <td class="username-cell"><strong><?php echo htmlspecialchars($req['username']); ?></strong></td>
-        <td class="name-cell"><?php echo htmlspecialchars($req['real_name']); ?></td>
+        <td style="white-space:nowrap;font-size:0.85em;color:var(--grey-500)"><?php echo $req['created_at']; ?></td>
+        <td><strong><?php echo htmlspecialchars($req['username']); ?></strong></td>
+        <td><?php echo htmlspecialchars($req['real_name']); ?></td>
         <td style="font-family:var(--font-num)"><?php echo htmlspecialchars($req['id_number']); ?></td>
         <td><?php echo htmlspecialchars($req['phone']); ?></td>
         <td>
@@ -496,7 +488,7 @@ $blacklist = getDB()->query('SELECT * FROM account_blacklist ORDER BY rejected_a
           <?php endif; ?>
         </td>
         <td>
-          <span class="badge badge-<?php echo $u['role']==='admin'?'fulltime':($u['role']==='goddess_plus'?'fulltime':'hourly'); ?>">
+          <span class="badge badge-<?php echo $u['role']==='admin'?'fulltime':($u['role']==='goddess_plus'?'fulltime':'hourly'); ?>" style="white-space:nowrap">
             <?php
               if ($u['role'] === 'admin') echo '👑 系統管理';
               elseif ($u['role'] === 'goddess_plus') echo '✨ 女神Plus';
@@ -507,7 +499,7 @@ $blacklist = getDB()->query('SELECT * FROM account_blacklist ORDER BY rejected_a
         <td style="color:var(--grey-<?php echo $u['employee_name']?'900':'300'; ?>)">
           <?php echo $u['employee_name'] ? htmlspecialchars($u['employee_name']) : '—'; ?>
         </td>
-        <td style="color:var(--grey-500);font-size:0.85em;white-space:nowrap">
+        <td style="color:var(--grey-700);font-size:0.88em;white-space:nowrap">
           <?php echo $u['created_at']; ?>
         </td>
         <td>
