@@ -5,6 +5,27 @@ requireLogin();
 
 $user    = currentUser();
 $isAdmin = isAdmin();
+
+// 待審核申請數（管理員才需要）
+$pendingRequestCount = 0;
+if ($isAdmin) {
+    try {
+        // 確保資料表存在後再查
+        getDB()->exec("CREATE TABLE IF NOT EXISTS account_requests (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            username VARCHAR(60) NOT NULL,
+            password_hash VARCHAR(255) NOT NULL,
+            real_name VARCHAR(60) NOT NULL,
+            id_number VARCHAR(20) NOT NULL,
+            phone VARCHAR(30) NOT NULL,
+            status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+            reject_reason VARCHAR(255) DEFAULT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ) DEFAULT CHARSET=utf8mb4");
+        $stmt = getDB()->query("SELECT COUNT(*) FROM account_requests WHERE status='pending'");
+        $pendingRequestCount = (int)$stmt->fetchColumn();
+    } catch (Exception $e) { $pendingRequestCount = 0; }
+}
 ?>
 <!DOCTYPE html>
 <html lang="zh-TW">
@@ -289,8 +310,21 @@ $isAdmin = isAdmin();
     <!-- 帳號管理（管理員限定） -->
     <a href="account.php" class="menu-card amber">
       <div class="menu-icon">🔑</div>
-      <div class="menu-title">帳號管理</div>
-      <div class="menu-desc">管理登入帳號、重設密碼與權限設定</div>
+      <div class="menu-title" style="display:flex;align-items:center;gap:6px">
+        帳號管理
+        <?php if ($pendingRequestCount > 0): ?>
+        <span style="background:var(--red-500);color:white;font-size:0.7em;font-weight:700;
+                     border-radius:10px;padding:2px 7px;white-space:nowrap">
+          <?php echo $pendingRequestCount; ?> 筆待審核
+        </span>
+        <?php endif; ?>
+      </div>
+      <div class="menu-desc">
+        管理登入帳號、重設密碼與權限設定
+        <?php if ($pendingRequestCount > 0): ?>
+        <br><span style="color:var(--amber-600);font-weight:600">⚠️ 有 <?php echo $pendingRequestCount; ?> 筆帳號申請等待處理</span>
+        <?php endif; ?>
+      </div>
       <div class="menu-arrow">→</div>
     </a>
     <?php else: ?>

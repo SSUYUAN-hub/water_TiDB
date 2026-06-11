@@ -146,7 +146,7 @@ body { display: flex; align-items: center; justify-content: center; min-height: 
     </form>
 
     <div class="login-hint">
-      管理員請聯絡系統管理者取得帳號
+      還沒有帳號？<a href="register.php" style="color:var(--green-700);font-weight:600;text-decoration:none">申請帳號 →</a>
     </div>
   </div>
 </div>
