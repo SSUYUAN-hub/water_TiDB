@@ -442,7 +442,7 @@ function saveMonthlyDeduction(array $data): void
 {
     $sql = '
         INSERT INTO monthly_deductions
-            (employee_name, year_month, insured_salary,
+            (employee_name, `year_month`, insured_salary,
              labor_ins_rate, labor_ins_calc, labor_ins,
              health_ins_rate, health_ins_calc, health_ins,
              net_salary, note)
@@ -486,7 +486,7 @@ function getMonthlyDeduction(string $employeeName, string $yearMonth): ?array
 {
     $stmt = getDB()->prepare(
         'SELECT * FROM monthly_deductions
-          WHERE employee_name = ? AND year_month = ? LIMIT 1'
+          WHERE employee_name = ? AND `year_month` = ? LIMIT 1'
     );
     $stmt->execute([$employeeName, $yearMonth]);
     $row = $stmt->fetch();
@@ -500,8 +500,8 @@ function getMonthlyDeductionsByYear(string $employeeName, string $year): array
 {
     $stmt = getDB()->prepare(
         "SELECT * FROM monthly_deductions
-          WHERE employee_name = ? AND year_month LIKE ?
-          ORDER BY year_month ASC"
+          WHERE employee_name = ? AND `year_month` LIKE ?
+          ORDER BY `year_month` ASC"
     );
     $stmt->execute([$employeeName, $year . '-%']);
     return $stmt->fetchAll();
