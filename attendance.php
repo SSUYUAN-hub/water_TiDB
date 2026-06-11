@@ -1391,8 +1391,18 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
                                     $ymId  = 'ym-' . str_replace('-','', $ym);
                                 ?>
                                     <tr class="ym-header" style="background:var(--green-50);cursor:pointer;user-select:none"
-                                        onclick="toggleYM('<?php echo $ymId; ?>', this)">
-                                        <td colspan="99" style="font-weight:700;color:var(--green-700);padding:10px 14px">
+                                        data-ymid="<?php echo $ymId; ?>">
+                                        <?php if ($isAdmin): ?>
+                                        <td style="width:36px;padding:10px 6px;text-align:center" onclick="event.stopPropagation()">
+                                            <input type="checkbox" class="ym-chk-all" id="ymchk-<?php echo $ymId; ?>"
+                                                onchange="toggleYMAll('<?php echo $ymId; ?>', this)" title="選取本月全部">
+                                        </td>
+                                        <td colspan="98" style="font-weight:700;color:var(--green-700);padding:10px 14px"
+                                            onclick="toggleYM('<?php echo $ymId; ?>', this.closest('tr'))">
+                                        <?php else: ?>
+                                        <td colspan="99" style="font-weight:700;color:var(--green-700);padding:10px 14px"
+                                            onclick="toggleYM('<?php echo $ymId; ?>', this.closest('tr'))">
+                                        <?php endif; ?>
                                             <span id="arrow-<?php echo $ymId; ?>" style="margin-right:8px">▶</span>
                                             📅 <?php echo $ymRoc; ?>（<?php echo count($ymRows); ?> 天）
                                         </td>
