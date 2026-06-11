@@ -316,23 +316,20 @@ if ($isAdmin) {
     </a>
 
     <!-- 帳號管理（管理員限定） -->
-    <a href="account.php" class="menu-card amber">
+    <a href="account.php" class="menu-card amber" style="<?php echo $pendingRequestCount > 0 ? 'border-color:#F59E0B;border-width:2px' : ''; ?>">
       <div class="menu-icon">🔑</div>
-      <div class="menu-title" style="display:flex;align-items:center;gap:6px">
-        帳號管理
-        <?php if ($pendingRequestCount > 0): ?>
-        <span style="background:var(--red-500);color:white;font-size:0.7em;font-weight:700;
-                     border-radius:10px;padding:2px 7px;white-space:nowrap">
-          <?php echo $pendingRequestCount; ?> 筆待審核
-        </span>
-        <?php endif; ?>
+      <div class="menu-title">帳號管理</div>
+      <div class="menu-desc">管理登入帳號、重設密碼與權限設定</div>
+      <?php if ($pendingRequestCount > 0): ?>
+      <div style="background:#FEF3C7;border:1.5px solid #F59E0B;border-radius:8px;padding:8px 10px;display:flex;align-items:center;gap:8px;margin-top:2px">
+        <span style="font-size:1.1em;flex-shrink:0">🔔</span>
+        <div>
+          <div style="font-size:0.82em;font-weight:800;color:#92400E;line-height:1.3">有 <?php echo $pendingRequestCount; ?> 筆帳號申請</div>
+          <div style="font-size:0.76em;color:#B45309;font-weight:500">等待審核處理</div>
+        </div>
+        <span style="background:#DC2626;color:white;font-size:0.72em;font-weight:700;border-radius:20px;padding:2px 8px;white-space:nowrap;margin-left:auto"><?php echo $pendingRequestCount; ?> 筆</span>
       </div>
-      <div class="menu-desc">
-        管理登入帳號、重設密碼與權限設定
-        <?php if ($pendingRequestCount > 0): ?>
-        <br><span style="color:var(--amber-600);font-weight:600">⚠️ 有 <?php echo $pendingRequestCount; ?> 筆帳號申請等待處理</span>
-        <?php endif; ?>
-      </div>
+      <?php endif; ?>
       <div class="menu-arrow">→</div>
     </a>
     <?php else: ?>
