@@ -277,7 +277,7 @@ $ftNightAllow   = $ftNightDays > 0 && $totalNightPay > 0 ? (int)round($totalNigh
 }
 .sb-row {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 11px 16px; border-bottom: 1px solid #f5f5f5; font-size: 0.88em;
+  padding: 11px 16px; border-bottom: 1px solid #f5f5f5; font-size: 0.93em;
 }
 .sb-row:last-child { border-bottom: none; }
 .sb-row.net-row {
@@ -465,7 +465,7 @@ $ftNightAllow   = $ftNightDays > 0 && $totalNightPay > 0 ? (int)round($totalNigh
       <div class="sb-row">
         <span class="sb-label">
           🌙 夜班津貼
-          <span style="font-size:0.85em;color:var(--grey-400);font-weight:400">
+          <span style="font-size:0.82em;color:var(--grey-400);font-weight:400;margin-left:4px">
             （<?php echo $ftNightDays; ?>天 × $<?php echo number_format($ftNightAllow); ?>）
           </span>
         </span>
@@ -606,7 +606,7 @@ $ftNightAllow   = $ftNightDays > 0 && $totalNightPay > 0 ? (int)round($totalNigh
       <div class="sb-row">
         <span class="sb-label">
           薪資
-          <span style="font-size:0.85em;color:var(--grey-400);font-weight:400">
+          <span style="font-size:0.82em;color:var(--grey-400);font-weight:400;margin-left:4px">
             （<?php echo $totalHours; ?>h × $<?php echo number_format($hourlyRate); ?>）
           </span>
         </span>
@@ -616,7 +616,7 @@ $ftNightAllow   = $ftNightDays > 0 && $totalNightPay > 0 ? (int)round($totalNigh
       <div class="sb-row">
         <span class="sb-label">
           🌙 夜班津貼
-          <span style="font-size:0.85em;color:var(--grey-400);font-weight:400">
+          <span style="font-size:0.82em;color:var(--grey-400);font-weight:400;margin-left:4px">
             （<?php echo $nightDays; ?>天 × $<?php echo number_format($nightAllow); ?>）
           </span>
         </span>

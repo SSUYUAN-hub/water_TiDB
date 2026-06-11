@@ -767,7 +767,7 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
         .att-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 0.85em;
+            font-size: 0.92em;
         }
 
         .att-table th {
@@ -886,7 +886,7 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
             }
 
             .att-table {
-                font-size: 0.78em
+                font-size: 0.85em
             }
 
             .att-table td,
@@ -1155,7 +1155,7 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
                     <div style="padding:14px 16px;display:flex;flex-direction:column;gap:0">
 
                         <!-- 勞健保費用 -->
-                        <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:9px 0;border-bottom:1px dashed #eee;font-size:0.88em;gap:8px">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:9px 0;border-bottom:1px dashed #eee;font-size:0.93em;gap:8px">
                             <div>
                                 <div style="color:var(--grey-500);margin-bottom:4px">勞健保費用</div>
                                 <button type="button"
@@ -1197,7 +1197,7 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
                             $otDays     = array_filter($attendances, fn($r) => $r['overtime_pay'] > 0);
                         ?>
                         <?php if ($monthSummary['overtime_pay'] > 0): ?>
-                        <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:9px 0;border-bottom:1px dashed #eee;font-size:0.88em;gap:8px">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:9px 0;border-bottom:1px dashed #eee;font-size:0.93em;gap:8px">
                             <div>
                                 <div style="color:var(--grey-500);margin-bottom:4px">加班費合計</div>
                                 <button type="button"
@@ -1239,7 +1239,7 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
 
                         <!-- 夜班津貼 -->
                         <?php if ($monthSummary['night_pay'] > 0): ?>
-                        <div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px dashed #eee;font-size:0.88em">
+                        <div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px dashed #eee;font-size:0.93em">
                             <span style="color:var(--grey-500)">🌙 夜班津貼</span>
                             <span style="font-weight:700;font-family:var(--font-num);color:var(--purple-600)">+$<?php echo number_format($monthSummary['night_pay']); ?></span>
                         </div>
@@ -1277,7 +1277,7 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
                     <div style="padding:14px 16px;display:flex;flex-direction:column;gap:0">
 
                         <!-- 薪資計算 -->
-                        <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:9px 0;border-bottom:1px dashed #eee;font-size:0.88em;gap:8px">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:9px 0;border-bottom:1px dashed #eee;font-size:0.93em;gap:8px">
                             <div>
                                 <div style="color:var(--grey-500);margin-bottom:4px">時薪薪資</div>
                                 <button type="button"
@@ -1295,7 +1295,7 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
 
                         <!-- 津貼計算 -->
                         <?php if ($totalNight > 0): ?>
-                        <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:9px 0;border-bottom:1px dashed #eee;font-size:0.88em;gap:8px">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:9px 0;border-bottom:1px dashed #eee;font-size:0.93em;gap:8px">
                             <div>
                                 <div style="color:var(--grey-500);margin-bottom:4px">🌙 夜班津貼</div>
                                 <button type="button"
@@ -1475,7 +1475,7 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
                                     ?>
                                     <tr class="ym-row ym-row-<?php echo $ymId; ?> ym-summary-row" style="display:none">
                                         <td colspan="99" style="padding:0;background:#FAFAFA">
-                                        <div style="margin:8px 12px 14px;border:1px solid #E0E0E0;border-radius:10px;overflow:hidden;font-size:0.88em">
+                                        <div style="margin:8px 12px 14px;border:1px solid #E0E0E0;border-radius:10px;overflow:hidden;font-size:1em">
                                             <div style="padding:9px 14px;background:#F5F5F5;font-weight:700;color:var(--grey-700);border-bottom:1px solid #E0E0E0">
                                                 💰 <?php echo $ymRoc; ?>月結薪資明細
                                             </div>
