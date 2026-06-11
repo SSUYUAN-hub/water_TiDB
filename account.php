@@ -118,9 +118,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             try {
                 $ins = getDB()->prepare('INSERT INTO users (username, password_hash, role, employee_name) VALUES (?, ?, ?, ?)');
-                $ins->execute([$row['username'], $row['password_hash'], $urole,
-                    ($urole === 'staff' && $uempname !== '') ? $uempname : null]);
+                $empLinkName = ($urole === 'staff' && $uempname !== '') ? $uempname : null;
+                $ins->execute([$row['username'], $row['password_hash'], $urole, $empLinkName]);
                 getDB()->prepare('UPDATE account_requests SET status="approved" WHERE id=?')->execute([$reqId]);
+                // 自動帶入員工資料（身分證、電話）
+                $overwriteConflict = null;
+                if ($empLinkName) {
+                    $empRow = getEmployee($empLinkName);
+                    if ($empRow) {
+                        $hasIdNum = !empty($empRow['id_number']);
+                        $hasPhone = !empty($empRow['phone']);
+                        $newIdNum = $row['id_number'];
+                        $newPhone = $row['phone'];
+                        if (($hasIdNum && $empRow['id_number'] !== $newIdNum) ||
+                            ($hasPhone && $empRow['phone']     !== $newPhone)) {
+                            // 有衝突，存入 session 等管理員確認
+                            $_SESSION['emp_data_conflict'] = [
+                                'emp_name'    => $empLinkName,
+                                'old_id'      => $empRow['id_number'] ?? '',
+                                'old_phone'   => $empRow['phone']     ?? '',
+                                'new_id'      => $newIdNum,
+                                'new_phone'   => $newPhone,
+                            ];
+                        } else {
+                            // 無衝突，空值直接帶入
+                            $updateFields = [];
+                            if (!$hasIdNum && $newIdNum) $updateFields['id_number'] = $newIdNum;
+                            if (!$hasPhone && $newPhone)  $updateFields['phone']     = $newPhone;
+                            if ($updateFields) {
+                                updateEmployee($empLinkName, array_merge([
+                                    'type'            => $empRow['type'],
+                                    'hourly_rate'     => $empRow['hourly_rate'],
+                                    'night_allowance' => $empRow['night_allowance'] ?? 0,
+                                    'hire_date'       => $empRow['hire_date'] ?? null,
+                                ], $updateFields));
+                            }
+                        }
+                    }
+                }
                 $message = "✅ 已核准帳號「{$row['username']}」"; $msgType = 'success';
             } catch (PDOException $e) {
                 $message = ($e->getCode() === '23000') ? "帳號「{$row['username']}」已存在" : '核准失敗：'.$e->getMessage();
@@ -147,6 +182,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $message = '拒絕失敗：'.$e->getMessage(); $msgType = 'error';
             }
         }
+
+    // ── 員工資料衝突覆蓋確認 ──
+    } elseif ($action === 'resolve_conflict') {
+        $empName  = $_POST['conflict_emp']   ?? '';
+        $choice   = $_POST['conflict_choice'] ?? 'keep';
+        if ($choice === 'overwrite' && $empName) {
+            $empRow = getEmployee($empName);
+            if ($empRow) {
+                updateEmployee($empName, array_merge([
+                    'type'            => $empRow['type'],
+                    'hourly_rate'     => $empRow['hourly_rate'],
+                    'night_allowance' => $empRow['night_allowance'] ?? 0,
+                    'hire_date'       => $empRow['hire_date'] ?? null,
+                ], [
+                    'id_number' => $_POST['new_id']    ?? $empRow['id_number'],
+                    'phone'     => $_POST['new_phone'] ?? $empRow['phone'],
+                ]));
+                $message = "✅ 已覆蓋「{$empName}」的身分證及電話資料"; $msgType = 'success';
+            }
+        } else {
+            $message = "已保留「{$empName}」的原有資料"; $msgType = 'success';
+        }
+        unset($_SESSION['emp_data_conflict']);
 
     // ── 移除黑名單 ──
     } elseif ($action === 'remove_blacklist') {
@@ -254,7 +312,7 @@ $blacklist = getDB()->query('SELECT * FROM account_blacklist ORDER BY rejected_a
 .user-table td { padding: 8px 10px; border: 1px solid #eee; vertical-align: middle; text-align: center; white-space: nowrap; }
 .user-table tr:nth-child(even) td { background: #FAFAFA; }
 
-.inline-form { display: flex; gap: 6px; align-items: center; flex-wrap: nowrap; }
+.inline-form { display: flex; gap: 6px; align-items: center; flex-wrap: nowrap; justify-content: center;}
 .inline-form input[type="text"],
 .inline-form input[type="password"] {
   padding: 6px 9px; border: 1.5px solid var(--grey-300);
@@ -266,9 +324,9 @@ $blacklist = getDB()->query('SELECT * FROM account_blacklist ORDER BY rejected_a
 
 .req-table { width:100%; border-collapse:collapse; font-size:0.9em; }
 .req-table th { background:var(--amber-100);color:#92400E;padding:9px 12px;text-align:center;border:1px solid #FDE68A;font-weight:600;white-space:nowrap; }
-.req-table td { padding:8px 10px;border:1px solid #eee;vertical-align:middle;white-space:nowrap; }
+.req-table td { padding:8px 10px;border:1px solid #eee;vertical-align:middle;white-space:nowrap;text-align: center; }
 .req-table tr:nth-child(even) td { background:#FFFBF0; }
-.approve-form { display:flex;gap:6px;flex-wrap:nowrap;align-items:center; }
+.approve-form { display:flex;gap:6px;flex-wrap:nowrap;align-items:center; justify-content: center;}
 .approve-form select,.approve-form input[type="text"] { padding:6px 8px;border:1.5px solid var(--grey-300);border-radius:6px;font-size:0.82em;font-family:var(--font-body); }
 .reject-wrap { display:flex;gap:6px;align-items:center;flex-wrap:nowrap; }
 .reject-wrap input[type="text"] { padding:6px 8px;border:1.5px solid var(--grey-300);border-radius:6px;font-size:0.82em;font-family:var(--font-body);width:110px; }
@@ -301,6 +359,55 @@ $blacklist = getDB()->query('SELECT * FROM account_blacklist ORDER BY rejected_a
   <?php if (!empty($message)): ?>
   <div class="msg msg-<?php echo $msgType === 'success' ? 'success' : 'error'; ?>" style="margin-bottom:14px">
     <?php echo htmlspecialchars($message); ?>
+  </div>
+  <?php endif; ?>
+
+  <?php if (!empty($_SESSION['emp_data_conflict'])): ?>
+  <?php $cf = $_SESSION['emp_data_conflict']; ?>
+  <div class="card" style="border:2px solid var(--amber-400);margin-bottom:14px">
+    <div class="card-title" style="color:#92400E">⚠️ 員工資料衝突確認</div>
+    <p style="font-size:0.9em;color:var(--grey-700);margin:0 0 12px">
+      員工「<?php echo htmlspecialchars($cf['emp_name']); ?>」已有以下資料，與申請者填寫的內容不同，請確認是否覆蓋：
+    </p>
+    <table style="width:100%;border-collapse:collapse;font-size:0.9em;margin-bottom:14px">
+      <thead><tr>
+        <th style="padding:8px 12px;background:var(--amber-100);color:#92400E;border:1px solid #FDE68A;text-align:left">欄位</th>
+        <th style="padding:8px 12px;background:var(--amber-100);color:#92400E;border:1px solid #FDE68A;text-align:left">現有資料</th>
+        <th style="padding:8px 12px;background:var(--amber-100);color:#92400E;border:1px solid #FDE68A;text-align:left">申請者填寫</th>
+      </tr></thead>
+      <tbody>
+        <?php if ($cf['old_id'] !== $cf['new_id']): ?>
+        <tr>
+          <td style="padding:8px 12px;border:1px solid #eee">身分證字號</td>
+          <td style="padding:8px 12px;border:1px solid #eee;color:var(--grey-500)"><?php echo htmlspecialchars($cf['old_id']); ?></td>
+          <td style="padding:8px 12px;border:1px solid #eee;font-weight:700;color:var(--green-700)"><?php echo htmlspecialchars($cf['new_id']); ?></td>
+        </tr>
+        <?php endif; ?>
+        <?php if ($cf['old_phone'] !== $cf['new_phone']): ?>
+        <tr>
+          <td style="padding:8px 12px;border:1px solid #eee">連絡電話</td>
+          <td style="padding:8px 12px;border:1px solid #eee;color:var(--grey-500)"><?php echo htmlspecialchars($cf['old_phone']); ?></td>
+          <td style="padding:8px 12px;border:1px solid #eee;font-weight:700;color:var(--green-700)"><?php echo htmlspecialchars($cf['new_phone']); ?></td>
+        </tr>
+        <?php endif; ?>
+      </tbody>
+    </table>
+    <div style="display:flex;gap:10px">
+      <form method="post" style="margin:0">
+        <input type="hidden" name="action"         value="resolve_conflict">
+        <input type="hidden" name="conflict_emp"   value="<?php echo htmlspecialchars($cf['emp_name']); ?>">
+        <input type="hidden" name="conflict_choice" value="overwrite">
+        <input type="hidden" name="new_id"    value="<?php echo htmlspecialchars($cf['new_id']); ?>">
+        <input type="hidden" name="new_phone" value="<?php echo htmlspecialchars($cf['new_phone']); ?>">
+        <button type="submit" class="btn btn-primary">✅ 覆蓋為申請者資料</button>
+      </form>
+      <form method="post" style="margin:0">
+        <input type="hidden" name="action"          value="resolve_conflict">
+        <input type="hidden" name="conflict_emp"    value="<?php echo htmlspecialchars($cf['emp_name']); ?>">
+        <input type="hidden" name="conflict_choice" value="keep">
+        <button type="submit" class="btn btn-secondary">保留現有資料</button>
+      </form>
+    </div>
   </div>
   <?php endif; ?>
 

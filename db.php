@@ -44,8 +44,23 @@ $pdo = new PDO($dsn, $user, $pass, [
 /**
  * 取得所有員工（依建立日期降冪）
  */
+function ensureEmployeeColumns(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    $db = getDB();
+    $cols = $db->query("SHOW COLUMNS FROM employees")->fetchAll(PDO::FETCH_COLUMN);
+    if (!in_array('id_number', $cols))
+        $db->exec("ALTER TABLE employees ADD COLUMN id_number VARCHAR(20) DEFAULT NULL AFTER name");
+    if (!in_array('phone', $cols))
+        $db->exec("ALTER TABLE employees ADD COLUMN phone VARCHAR(30) DEFAULT NULL AFTER id_number");
+    if (!in_array('hire_date', $cols))
+        $db->exec("ALTER TABLE employees ADD COLUMN hire_date DATE DEFAULT NULL AFTER phone");
+}
+
 function getEmployees(): array
 {
+    ensureEmployeeColumns();
     $stmt = getDB()->query('SELECT * FROM employees ORDER BY created_at DESC');
     return $stmt->fetchAll();
 }
@@ -67,15 +82,19 @@ function getEmployee(string $name): ?array
 function addEmployee(array $data): bool
 {
     try {
+        ensureEmployeeColumns();
         $stmt = getDB()->prepare(
-            'INSERT INTO employees (name, type, hourly_rate, night_allowance, created_at)
-             VALUES (:name, :type, :hourly_rate, :night_allowance, :created_at)'
+            'INSERT INTO employees (name, type, hourly_rate, night_allowance, id_number, phone, hire_date, created_at)
+             VALUES (:name, :type, :hourly_rate, :night_allowance, :id_number, :phone, :hire_date, :created_at)'
         );
         $stmt->execute([
             ':name'            => $data['name'],
             ':type'            => $data['type'],
             ':hourly_rate'     => (int)$data['hourly_rate'],
             ':night_allowance' => (int)($data['night_allowance'] ?? 0),
+            ':id_number'       => $data['id_number']  ?? null,
+            ':phone'           => $data['phone']       ?? null,
+            ':hire_date'       => $data['hire_date']   ?? null,
             ':created_at'      => date('Y-m-d'),
         ]);
         return true;
@@ -91,17 +110,24 @@ function addEmployee(array $data): bool
  */
 function updateEmployee(string $name, array $data): bool
 {
+    ensureEmployeeColumns();
     $stmt = getDB()->prepare(
         'UPDATE employees
             SET type            = :type,
                 hourly_rate     = :hourly_rate,
-                night_allowance = :night_allowance
+                night_allowance = :night_allowance,
+                id_number       = :id_number,
+                phone           = :phone,
+                hire_date       = :hire_date
           WHERE name = :name'
     );
     $stmt->execute([
         ':type'            => $data['type'],
         ':hourly_rate'     => (int)$data['hourly_rate'],
         ':night_allowance' => (int)($data['night_allowance'] ?? 0),
+        ':id_number'       => $data['id_number']  ?: null,
+        ':phone'           => $data['phone']       ?: null,
+        ':hire_date'       => $data['hire_date']   ?: null,
         ':name'            => $name,
     ]);
     return $stmt->rowCount() > 0;
@@ -416,7 +442,7 @@ function saveMonthlyDeduction(array $data): void
 {
     $sql = '
         INSERT INTO monthly_deductions
-            (employee_name, `year_month`, insured_salary,
+            (employee_name, year_month, insured_salary,
              labor_ins_rate, labor_ins_calc, labor_ins,
              health_ins_rate, health_ins_calc, health_ins,
              net_salary, note)
@@ -460,7 +486,7 @@ function getMonthlyDeduction(string $employeeName, string $yearMonth): ?array
 {
     $stmt = getDB()->prepare(
         'SELECT * FROM monthly_deductions
-          WHERE employee_name = ? AND `year_month` = ? LIMIT 1'
+          WHERE employee_name = ? AND year_month = ? LIMIT 1'
     );
     $stmt->execute([$employeeName, $yearMonth]);
     $row = $stmt->fetch();
@@ -474,8 +500,8 @@ function getMonthlyDeductionsByYear(string $employeeName, string $year): array
 {
     $stmt = getDB()->prepare(
         "SELECT * FROM monthly_deductions
-          WHERE employee_name = ? AND `year_month` LIKE ?
-          ORDER BY `year_month` ASC"
+          WHERE employee_name = ? AND year_month LIKE ?
+          ORDER BY year_month ASC"
     );
     $stmt->execute([$employeeName, $year . '-%']);
     return $stmt->fetchAll();
