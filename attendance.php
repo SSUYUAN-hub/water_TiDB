@@ -593,6 +593,13 @@ if ($searched) {
     if ($queryMode === 'year') {
         $yearGrouped = ($selEmp && $selYear) ? getAttendanceByYear($selEmp, $selYear) : [];
         $allRows = array_merge(...(array_values($yearGrouped) ?: [[]]));
+        // 撈該年所有月份的勞健保扣項
+        if ($selEmp && $selYear) {
+            $ydList = getMonthlyDeductionsByYear($selEmp, $selYear);
+            foreach ($ydList as $yd) {
+                $yearDeductions[$yd['year_month']] = $yd;
+            }
+        }
         if (!empty($allRows)) {
             $monthSummary = [
                 'work_days'      => count($allRows),
@@ -1046,15 +1053,34 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
 
                 <!-- 月份摘要 -->
                 <?php
-                    // 正職：實領 = 月薪+加班費+獎金-勞健保
-                    $bonusAmt     = 0; // 獎金（待規劃）
-                    $insDeduct    = 0; // 勞健保實際扣繳
-                    if ($queryMode === 'month' && $selEmpType === 'fulltime') {
+                    $bonusAmt    = 0; // 獎金（待規劃）
+                    $insDeduct   = 0; // 勞健保實際扣繳（合計）
+                    $monthlyWage = (int)($selEmpData['hourly_rate'] ?? 0);
+
+                    if ($queryMode === 'year' && $selEmpType === 'fulltime') {
+                        // 年份模式：各月勞健保加總，年度薪資 = 各月(月薪+加班費+夜班津貼-勞健保) 加總
+                        $yearInsTotal = 0;
+                        $yearNetTotal = 0;
+                        foreach ($yearGrouped as $ym2 => $ymRows2) {
+                            $ymOTPay2    = array_sum(array_column($ymRows2, 'overtime_pay'));
+                            $ymNightPay2 = array_sum(array_column($ymRows2, 'night_pay'));
+                            $ymIns2      = 0;
+                            if (isset($yearDeductions[$ym2])) {
+                                $ymIns2 = (int)$yearDeductions[$ym2]['labor_ins'] + (int)$yearDeductions[$ym2]['health_ins'];
+                            }
+                            $yearInsTotal += $ymIns2;
+                            $yearNetTotal += $monthlyWage + $ymOTPay2 + $ymNightPay2 - $ymIns2;
+                        }
+                        $insDeduct   = $yearInsTotal;
+                        $fulltimeNet = $yearNetTotal;
+                    } elseif ($queryMode === 'month' && $selEmpType === 'fulltime') {
                         $mdPreview = getMonthlyDeduction($selEmp, $selYM);
                         if ($mdPreview) $insDeduct = (int)$mdPreview['labor_ins'] + (int)$mdPreview['health_ins'];
+                        $fulltimeNet = $monthlyWage + $monthSummary['overtime_pay'] + $monthSummary['night_pay'] + $bonusAmt - $insDeduct;
+                    } else {
+                        $fulltimeNet = $monthlyWage + $monthSummary['overtime_pay'] + $monthSummary['night_pay'] + $bonusAmt;
                     }
-                    $fulltimeNet  = (int)($selEmpData['hourly_rate'] ?? 0) + $monthSummary['overtime_pay'] + $monthSummary['night_pay'] + $bonusAmt - $insDeduct;
-                    $hourlyNet    = $monthSummary['total_salary'];
+                    $hourlyNet = $monthSummary['total_salary'];
                 ?>
                 <div class="summary-grid">
                     <!-- 出勤天數：正職時薪都顯示 -->
@@ -1410,9 +1436,10 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
                                         <?php endif; ?>
                                         <td class="salary-cell">$<?php echo number_format($att['salary']); ?></td>
                                         <?php if ($isAdmin): ?>
+                                            <?php $attYM = substr($att['work_date'], 0, 7); ?>
                                             <td>
                                                 <div class="action-cell">
-                                                    <a href="attendance.php?emp=<?php echo urlencode($selEmp); ?>&ym=<?php echo $selYM; ?>&mode=<?php echo $queryMode; ?>&searched=1&edit_id=<?php echo $att['id']; ?>#edit"
+                                                    <a href="attendance.php?emp=<?php echo urlencode($selEmp); ?>&ym=<?php echo $attYM; ?>&year=<?php echo $selYear; ?>&mode=year&searched=1&edit_id=<?php echo $att['id']; ?>#edit"
                                                         class="btn btn-ghost btn-sm">✏️</a>
                                                     <button type="button" class="btn btn-danger btn-sm"
                                                         onclick="openDeleteModal([<?php echo $att['id']; ?>])">🗑️</button>
@@ -1420,8 +1447,142 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
                                             </td>
                                         <?php endif; ?>
                                     </tr>
-                                    <?php endforeach; ?>
-                                <?php endforeach; ?>
+                                    <?php endforeach; // end ymRows ?>
+
+                                    <?php
+                                    // ── 月結薪資明細（年份模式，每月折疊區下方）──
+                                    $ymOTPay    = array_sum(array_column($ymRows, 'overtime_pay'));
+                                    $ymNightPay = array_sum(array_column($ymRows, 'night_pay'));
+                                    $ymTotalHrs = round(array_sum(array_column($ymRows, 'total_hours')), 2);
+                                    $ymTotalSal = array_sum(array_column($ymRows, 'salary'));
+                                    $ymMd       = $yearDeductions[$ym] ?? null;
+                                    $ymInsDeduct = $ymMd ? (int)$ymMd['labor_ins'] + (int)$ymMd['health_ins'] : 0;
+                                    if ($selEmpType === 'fulltime') {
+                                        $ymNet = $monthlyWage + $ymOTPay + $ymNightPay - $ymInsDeduct;
+                                    } else {
+                                        $ymNet = $ymTotalSal;
+                                    }
+                                    ?>
+                                    <tr class="ym-row ym-row-<?php echo $ymId; ?> ym-summary-row" style="display:none">
+                                        <td colspan="99" style="padding:0;background:#FAFAFA">
+                                        <div style="margin:8px 12px 14px;border:1px solid #E0E0E0;border-radius:10px;overflow:hidden;font-size:0.88em">
+                                            <div style="padding:9px 14px;background:#F5F5F5;font-weight:700;color:var(--grey-700);border-bottom:1px solid #E0E0E0">
+                                                💰 <?php echo $ymRoc; ?>月結薪資明細
+                                            </div>
+                                            <div style="padding:12px 14px;display:flex;flex-direction:column;gap:0">
+                                            <?php if ($selEmpType === 'fulltime'): ?>
+                                                <?php if ($ymMd): ?>
+                                                    <?php
+                                                        $ymLaborCalc  = (int)($ymMd['labor_ins_calc']  ?? $ymMd['labor_ins']);
+                                                        $ymHealthCalc = (int)($ymMd['health_ins_calc'] ?? $ymMd['health_ins']);
+                                                        $ymLaborFinal  = (int)$ymMd['labor_ins'];
+                                                        $ymHealthFinal = (int)$ymMd['health_ins'];
+                                                        $ymCalcTotal   = $ymLaborCalc + $ymHealthCalc;
+                                                        $ymFinalTotal  = $ymLaborFinal + $ymHealthFinal;
+                                                    ?>
+                                                    <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:7px 0;border-bottom:1px dashed #eee;gap:8px">
+                                                        <div>
+                                                            <div style="color:var(--grey-500);margin-bottom:3px">勞健保費用</div>
+                                                            <button type="button"
+                                                                style="font-size:0.75em;background:none;border:1px solid var(--grey-300);border-radius:4px;padding:2px 7px;cursor:pointer;color:var(--grey-500)"
+                                                                onclick="toggleInsFormula(this)">📐 查看計算公式 ▼</button>
+                                                        </div>
+                                                        <div style="text-align:right;flex-shrink:0">
+                                                            <div style="font-size:0.8em;color:var(--grey-400)">依法應扣：−$<?php echo number_format($ymCalcTotal); ?></div>
+                                                            <div style="font-weight:700;color:var(--purple-600)">實際扣繳：−$<?php echo number_format($ymFinalTotal); ?></div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="ins-formula-detail" style="display:none;background:#F8F9FA;border-bottom:1px dashed #eee;padding:12px 14px;color:var(--grey-700);line-height:1.9">
+                                                        <div style="font-weight:700;color:var(--grey-500);font-size:0.85em;margin-bottom:6px">🛡️ 勞保費</div>
+                                                        <div style="display:flex;justify-content:space-between;background:white;border-radius:6px;padding:6px 10px;margin-top:3px;border:1px solid #eee">
+                                                            <span style="color:var(--purple-600)">$<?php echo number_format((int)$ymMd['insured_salary']); ?> × <?php echo round($ymMd['labor_ins_rate']*100,2); ?>% × 20%</span>
+                                                            <span style="font-weight:700;color:var(--purple-600)">= $<?php echo number_format($ymLaborCalc); ?></span>
+                                                        </div>
+                                                        <div style="font-weight:700;color:var(--grey-500);font-size:0.85em;margin-top:12px;margin-bottom:6px">🏥 健保費</div>
+                                                        <div style="display:flex;justify-content:space-between;background:white;border-radius:6px;padding:6px 10px;margin-top:3px;border:1px solid #eee">
+                                                            <span style="color:var(--purple-600)">$<?php echo number_format((int)$ymMd['insured_salary']); ?> × <?php echo round($ymMd['health_ins_rate']*100,3); ?>% × 30%</span>
+                                                            <span style="font-weight:700;color:var(--purple-600)">= $<?php echo number_format($ymHealthCalc); ?></span>
+                                                        </div>
+                                                    </div>
+                                                <?php else: ?>
+                                                    <div style="padding:6px 10px;font-size:0.85em;color:#E65100;background:var(--amber-100);border-radius:6px;margin-bottom:4px;border-left:3px solid var(--amber-500)">
+                                                        ⚠️ 本月尚無勞健保扣項紀錄
+                                                    </div>
+                                                <?php endif; ?>
+                                                <?php if ($ymOTPay > 0):
+                                                    $ymHrRate = round($monthlyWage / 240, 4);
+                                                    $ymOTDays = array_filter($ymRows, fn($r) => $r['overtime_pay'] > 0);
+                                                ?>
+                                                <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:7px 0;border-bottom:1px dashed #eee;gap:8px">
+                                                    <div>
+                                                        <div style="color:var(--grey-500);margin-bottom:3px">加班費合計</div>
+                                                        <button type="button"
+                                                            style="font-size:0.75em;background:none;border:1px solid var(--grey-300);border-radius:4px;padding:2px 7px;cursor:pointer;color:var(--grey-500)"
+                                                            onclick="toggleOTFormula(this)">📐 查看加班費計算 ▼</button>
+                                                    </div>
+                                                    <span style="font-weight:700;color:var(--amber-500)">+$<?php echo number_format($ymOTPay); ?></span>
+                                                </div>
+                                                <div class="ot-formula-detail" style="display:none;background:#FFFDE7;border-bottom:1px dashed #eee;padding:12px 14px;color:var(--grey-700);line-height:1.8">
+                                                    <div style="margin-bottom:6px;color:var(--grey-600)">
+                                                        月薪 $<?php echo number_format($monthlyWage); ?> ÷ 30 ÷ 8 ＝ 時薪 $<?php echo round($ymHrRate, 2); ?> 元
+                                                    </div>
+                                                    <div style="margin-bottom:10px;color:var(--grey-500);font-size:0.9em">
+                                                        🔶 前2h（×4/3）：$<?php echo round($ymHrRate * 4/3, 2); ?> ／h　　🔴 第3h起（×5/3）：$<?php echo round($ymHrRate * 5/3, 2); ?> ／h
+                                                    </div>
+                                                    <?php foreach ($ymOTDays as $otRow):
+                                                        $ot1h = min($otRow['overtime_hours'], 2);
+                                                        $ot2h = max($otRow['overtime_hours'] - 2, 0);
+                                                    ?>
+                                                    <div style="padding:7px 10px;background:white;border-radius:6px;border:1px solid #FFF176;margin-bottom:5px">
+                                                        <div style="font-weight:700;color:var(--grey-700);margin-bottom:3px"><?php echo $otRow['work_date']; ?> 加班 <?php echo $otRow['overtime_hours']; ?>h</div>
+                                                        <?php if ($ot1h > 0): ?><div style="color:#F57F17">🔶 前<?php echo round($ot1h,2); ?>h × $<?php echo round($ymHrRate*4/3,2); ?>（×4/3）= $<?php echo (int)ceil($ot1h*$ymHrRate*4/3); ?></div><?php endif; ?>
+                                                        <?php if ($ot2h > 0): ?><div style="color:#C62828">🔴 後<?php echo round($ot2h,2); ?>h × $<?php echo round($ymHrRate*5/3,2); ?>（×5/3）= $<?php echo (int)ceil($ot2h*$ymHrRate*5/3); ?></div><?php endif; ?>
+                                                        <div style="font-weight:700;color:var(--amber-600);margin-top:2px">小計：$<?php echo $otRow['overtime_pay']; ?></div>
+                                                    </div>
+                                                    <?php endforeach; ?>
+                                                    <div style="display:flex;justify-content:space-between;background:#FFF8E1;border-radius:6px;padding:7px 10px;border:1px solid #FFE082;margin-top:3px">
+                                                        <span style="font-weight:700;color:var(--amber-600)">加班費合計</span>
+                                                        <span style="font-weight:700;color:var(--amber-600)">$<?php echo number_format($ymOTPay); ?></span>
+                                                    </div>
+                                                </div>
+                                                <?php endif; ?>
+                                                <?php if ($ymNightPay > 0): ?>
+                                                <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px dashed #eee">
+                                                    <span style="color:var(--grey-500)">🌙 夜班津貼</span>
+                                                    <span style="font-weight:700;color:var(--purple-600)">+$<?php echo number_format($ymNightPay); ?></span>
+                                                </div>
+                                                <?php endif; ?>
+                                                <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;background:var(--green-50);border-top:2px solid #A5D6A7;margin-top:4px">
+                                                    <span style="font-weight:700;color:var(--green-700);font-size:1.1em">實領金額</span>
+                                                    <span style="font-weight:700;color:var(--green-700);font-size:1.3em"><?php echo $ymMd ? '$'.number_format($ymNet) : '（待勞健保記錄）'; ?></span>
+                                                </div>
+                                            <?php else: ?>
+                                                <?php
+                                                    $ymHrWage   = (int)($selEmpData['hourly_rate'] ?? 0);
+                                                    $ymNightDays = count(array_filter($ymRows, fn($r) => $r['night_pay'] > 0));
+                                                    $ymWageOnly = $ymTotalSal - $ymNightPay;
+                                                ?>
+                                                <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px dashed #eee">
+                                                    <span style="color:var(--grey-500)">時薪薪資（<?php echo $ymTotalHrs; ?>h × $<?php echo $ymHrWage; ?>）</span>
+                                                    <span style="font-weight:700">$<?php echo number_format($ymWageOnly); ?></span>
+                                                </div>
+                                                <?php if ($ymNightPay > 0): ?>
+                                                <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px dashed #eee">
+                                                    <span style="color:var(--grey-500)">🌙 夜班津貼（<?php echo $ymNightDays; ?>天 × $<?php echo $selNightAllow; ?>）</span>
+                                                    <span style="font-weight:700;color:var(--purple-600)">+$<?php echo number_format($ymNightPay); ?></span>
+                                                </div>
+                                                <?php endif; ?>
+                                                <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;background:var(--green-50);border-top:2px solid #A5D6A7;margin-top:4px">
+                                                    <span style="font-weight:700;color:var(--green-700);font-size:1.1em">本月薪資合計</span>
+                                                    <span style="font-weight:700;color:var(--green-700);font-size:1.3em">$<?php echo number_format($ymTotalSal); ?></span>
+                                                </div>
+                                            <?php endif; ?>
+                                            </div>
+                                        </div>
+                                        </td>
+                                    </tr>
+
+                                <?php endforeach; // end yearGrouped ?>
                                 <?php else: ?>
                                 <?php foreach ($attendances as $att): ?>
                                     <tr data-id="<?php echo $att['id']; ?>"
@@ -1569,6 +1730,19 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
         const open  = rows.length > 0 && rows[0].style.display === 'none';
         rows.forEach(r => r.style.display = open ? '' : 'none');
         if (arrow) arrow.textContent = open ? '▼' : '▶';
+        if (!open) {
+            rows.forEach(r => { const c = r.querySelector('.row-chk'); if(c) c.checked = false; });
+            const ymChk = document.getElementById('ymchk-' + ymId);
+            if (ymChk) ymChk.checked = false;
+            updateBulkButtons();
+        }
+    }
+
+    // ── 月份全選（年份模式）──
+    function toggleYMAll(ymId, chk) {
+        const rows = document.querySelectorAll('.ym-row-' + ymId + ':not(.ym-subheader):not(.ym-summary-row)');
+        rows.forEach(r => { const c = r.querySelector('.row-chk'); if(c) c.checked = chk.checked; });
+        updateBulkButtons();
     }
 
     // ── Checkbox 多選邏輯 ──
