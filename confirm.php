@@ -107,7 +107,7 @@ if ($done) {
     <?php if ($isFulltime): ?>
     <div class="sb-row">
       <span class="sb-label">月薪</span>
-      <span class="sb-val">$<?php echo number_format((int)($r['wage'] ?? 0)); ?></span>
+      <span class="sb-val">$<?php echo number_format($r['total_salary'] - $r['total_ot_pay'] - $r['total_night_pay'] + ($r['labor_ins'] ?? 0) + ($r['health_ins'] ?? 0) - ($r['net_salary'] - ($r['total_salary'] - $r['total_ot_pay'] - $r['total_night_pay']))); ?></span>
     </div>
     <?php if ($r['total_ot_pay'] > 0): ?>
     <div class="sb-row">
@@ -224,6 +224,13 @@ $laborInsCalc   = $p['labor_ins_calc']   ?? 0;
 $healthInsCalc  = $p['health_ins_calc']  ?? 0;
 $insTotal       = $p['ins_total']        ?? 0;
 $netSalary      = $p['net_salary']       ?? $totalSalary;
+// 時薪 & 夜班天數（時薪制明細用）
+$hourlyRate     = $isFulltime ? 0 : $wage;
+$nightDays      = count(array_filter($records, fn($r) => ($r['night_pay'] ?? 0) > 0));
+$nightAllow     = $nightDays > 0 && $totalNightPay > 0 ? (int)round($totalNightPay / $nightDays) : 0;
+// 正職夜班同樣計算
+$ftNightDays    = $isFulltime ? count(array_filter($records, fn($r) => ($r['night_pay'] ?? 0) > 0)) : 0;
+$ftNightAllow   = $ftNightDays > 0 && $totalNightPay > 0 ? (int)round($totalNightPay / $ftNightDays) : 0;
 ?>
 <!DOCTYPE html>
 <html lang="zh-TW">
@@ -456,7 +463,12 @@ $netSalary      = $p['net_salary']       ?? $totalSalary;
       <!-- 夜班津貼 -->
       <?php if ($totalNightPay > 0): ?>
       <div class="sb-row">
-        <span class="sb-label">🌙 夜班津貼</span>
+        <span class="sb-label">
+          🌙 夜班津貼
+          <span style="font-size:0.85em;color:var(--grey-400);font-weight:400">
+            （<?php echo $ftNightDays; ?>天 × $<?php echo number_format($ftNightAllow); ?>）
+          </span>
+        </span>
         <span class="sb-val plus">+$<?php echo number_format($totalNightPay); ?></span>
       </div>
       <?php endif; ?>
@@ -590,11 +602,25 @@ $netSalary      = $p['net_salary']       ?? $totalSalary;
       </div>
 
       <?php else: ?>
-      <!-- 時薪制：無勞健保 -->
+      <!-- 時薪制：薪資計算式 -->
+      <div class="sb-row">
+        <span class="sb-label">
+          薪資
+          <span style="font-size:0.85em;color:var(--grey-400);font-weight:400">
+            （<?php echo $totalHours; ?>h × $<?php echo number_format($hourlyRate); ?>）
+          </span>
+        </span>
+        <span class="sb-val">$<?php echo number_format($totalSalary - $totalNightPay); ?></span>
+      </div>
       <?php if ($hasNight): ?>
       <div class="sb-row">
-        <span class="sb-label">🌙 夜班津貼</span>
-        <span class="sb-val plus">$<?php echo number_format($totalNightPay); ?></span>
+        <span class="sb-label">
+          🌙 夜班津貼
+          <span style="font-size:0.85em;color:var(--grey-400);font-weight:400">
+            （<?php echo $nightDays; ?>天 × $<?php echo number_format($nightAllow); ?>）
+          </span>
+        </span>
+        <span class="sb-val plus">+$<?php echo number_format($totalNightPay); ?></span>
       </div>
       <?php endif; ?>
       <div class="sb-row net-row">

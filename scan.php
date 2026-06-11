@@ -395,16 +395,19 @@ function checkNightShift(string $endTime, string $startTime = ''): bool {
   background: #F8F9FA; border-radius: var(--radius-sm);
   padding: 10px 12px;
 }
-.shift-label {
-  font-size: 0.72em; font-weight: 700;
-  color: var(--grey-500); margin-bottom: 8px;
-  text-transform: uppercase; letter-spacing: 0.04em;
-}
-.shift-block.shift2 .shift-label { color: var(--purple-600); }
+.shift-label { display: none; }
 
 .time-pair {
-  display: flex; align-items: center; gap: 6px;
+  display: flex; align-items: flex-end; gap: 6px;
 }
+.time-field {
+  display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 0;
+}
+.time-field-label {
+  font-size: 0.68em; font-weight: 700; margin-bottom: 4px;
+  color: var(--grey-500); white-space: nowrap;
+}
+.shift-block.shift2 .time-field-label { color: var(--purple-600); }
 .time-pair .time-input {
   flex: 1; min-width: 0;
   border: 1.5px solid #ddd; border-radius: 6px;
@@ -600,37 +603,49 @@ function checkNightShift(string $endTime, string $startTime = ''): bool {
 
         <div class="shifts">
             <div class="shift-block">
-                <div class="shift-label" style="display:flex;gap:5px;align-items:center">
-                  <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#1565C0;flex-shrink:0"></span>上班
-                  <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#388E3C;flex-shrink:0;margin-left:4px"></span>下班
-                </div>
                 <div class="time-pair">
-                    <input type="text" class="time-input" placeholder=""
-                           name="day[<?php echo $i; ?>][s1_start]"
-                           value="<?php echo htmlspecialchars($day['shift1_start']); ?>"
-                           onchange="recalcDay(<?php echo $i; ?>)">
-                    <span class="time-sep">→</span>
-                    <input type="text" class="time-input" placeholder=""
-                           name="day[<?php echo $i; ?>][s1_end]"
-                           value="<?php echo htmlspecialchars($day['shift1_end']); ?>"
-                           onchange="recalcDay(<?php echo $i; ?>)">
+                    <div class="time-field">
+                        <span class="time-field-label">
+                            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#1565C0;margin-right:3px"></span>第一段上班
+                        </span>
+                        <input type="text" class="time-input" placeholder=""
+                               name="day[<?php echo $i; ?>][s1_start]"
+                               value="<?php echo htmlspecialchars($day['shift1_start']); ?>"
+                               onchange="recalcDay(<?php echo $i; ?>)">
+                    </div>
+                    <span class="time-sep" style="margin-bottom:9px">→</span>
+                    <div class="time-field">
+                        <span class="time-field-label">
+                            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#388E3C;margin-right:3px"></span>第一段下班
+                        </span>
+                        <input type="text" class="time-input" placeholder=""
+                               name="day[<?php echo $i; ?>][s1_end]"
+                               value="<?php echo htmlspecialchars($day['shift1_end']); ?>"
+                               onchange="recalcDay(<?php echo $i; ?>)">
+                    </div>
                 </div>
             </div>
             <div class="shift-block shift2">
-                <div class="shift-label" style="display:flex;gap:5px;align-items:center">
-                  <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#7C4DFF;flex-shrink:0"></span>加班上班
-                  <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#757575;flex-shrink:0;margin-left:4px"></span>加班下班
-                </div>
                 <div class="time-pair">
-                    <input type="text" class="time-input" placeholder=""
-                           name="day[<?php echo $i; ?>][s2_start]"
-                           value="<?php echo htmlspecialchars($day['shift2_start']); ?>"
-                           onchange="recalcDay(<?php echo $i; ?>)">
-                    <span class="time-sep">→</span>
-                    <input type="text" class="time-input" placeholder=""
-                           name="day[<?php echo $i; ?>][s2_end]"
-                           value="<?php echo htmlspecialchars($day['shift2_end']); ?>"
-                           onchange="recalcDay(<?php echo $i; ?>)">
+                    <div class="time-field">
+                        <span class="time-field-label">
+                            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#7C4DFF;margin-right:3px"></span>第二段上班
+                        </span>
+                        <input type="text" class="time-input" placeholder=""
+                               name="day[<?php echo $i; ?>][s2_start]"
+                               value="<?php echo htmlspecialchars($day['shift2_start']); ?>"
+                               onchange="recalcDay(<?php echo $i; ?>)">
+                    </div>
+                    <span class="time-sep" style="margin-bottom:9px">→</span>
+                    <div class="time-field">
+                        <span class="time-field-label">
+                            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#757575;margin-right:3px"></span>第二段下班
+                        </span>
+                        <input type="text" class="time-input" placeholder=""
+                               name="day[<?php echo $i; ?>][s2_end]"
+                               value="<?php echo htmlspecialchars($day['shift2_end']); ?>"
+                               onchange="recalcDay(<?php echo $i; ?>)">
+                    </div>
                 </div>
             </div>
         </div>
