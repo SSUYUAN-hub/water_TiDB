@@ -212,7 +212,7 @@ PROMPT;
 
             $preview = previewCalc($s1_start, $s1_end, $s2_start, $s2_end, $wage, $empType);
             $lastEnd = $s2_end ?: $s1_end;
-            $isNight = ($nightAllowance > 0) && checkNightShift($lastEnd);
+            $isNight = ($nightAllowance > 0) && checkNightShift($lastEnd, $s1_start);
 
             $parsedDays[] = [
                 'date'         => $dateNum,
@@ -351,13 +351,13 @@ function timeDiffHours($start, $end): float {
     } catch (Exception $ex) { return 0; }
 }
 
-// 判斷是否觸發夜班（下班 >= 23:00 或凌晨 06:00 前）
-function checkNightShift(string $endTime): bool {
+// 判斷是否觸發夜班（下班時間為 00:00～05:59）
+function checkNightShift(string $endTime, string $startTime = ''): bool {
     if (empty($endTime)) return false;
     try {
         $endMin = (int)(new DateTime($endTime))->format('H') * 60
                 + (int)(new DateTime($endTime))->format('i');
-        return ($endMin >= 23 * 60) || ($endMin < 6 * 60);
+        return $endMin < 6 * 60;
     } catch (Exception $e) { return false; }
 }
 ?>
