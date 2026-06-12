@@ -13,15 +13,72 @@ require_once __DIR__ . '/vendor/autoload.php';
 include_once __DIR__ . '/db.php';
 include_once __DIR__ . '/auth.php';
 
+sendSecurityHeaders();
+
 // 已登入直接跳走
 if (isLoggedIn()) {
     header('Location: ' . (isAdmin() ? 'index.php' : 'attendance.php'));
     exit;
 }
 
-$errorMsg = '';
+// ── 暴力破解防護設定 ─────────────────────────────────
+const LOGIN_MAX_ATTEMPTS = 10;   // 同一 IP 最多嘗試次數
+const LOGIN_LOCKOUT_SEC  = 600;  // 鎖定時間（秒）：10 分鐘
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+function getLoginAttempts(): array {
+    return $_SESSION['login_attempts'] ?? ['count' => 0, 'first_at' => 0];
+}
+
+function recordLoginFailure(): void {
+    $a = getLoginAttempts();
+    $now = time();
+    // 若超過鎖定期，重置計數
+    if ($a['count'] > 0 && ($now - $a['first_at']) > LOGIN_LOCKOUT_SEC) {
+        $a = ['count' => 0, 'first_at' => 0];
+    }
+    if ($a['count'] === 0) $a['first_at'] = $now;
+    $a['count']++;
+    $_SESSION['login_attempts'] = $a;
+}
+
+function resetLoginAttempts(): void {
+    unset($_SESSION['login_attempts']);
+}
+
+function isLoginLocked(): bool {
+    $a = getLoginAttempts();
+    if ($a['count'] < LOGIN_MAX_ATTEMPTS) return false;
+    return (time() - $a['first_at']) < LOGIN_LOCKOUT_SEC;
+}
+
+function lockoutSecondsRemaining(): int {
+    $a = getLoginAttempts();
+    $remaining = LOGIN_LOCKOUT_SEC - (time() - $a['first_at']);
+    return max(0, (int)$remaining);
+}
+
+// ── Redirect 安全白名單 ───────────────────────────────
+const REDIRECT_WHITELIST = ['index.php', 'attendance.php', 'admin.php', 'account.php', 'scan_upload.php'];
+
+function safeRedirect(string $redirect): string {
+    // 只允許白名單內的檔名（允許帶 query string，但不允許路徑跳出）
+    $path = strtok($redirect, '?');  // 取出路徑部分（去掉 query string）
+    $base = basename($path);
+    if (in_array($base, REDIRECT_WHITELIST, true) && $base === $path) {
+        // 還原 query string（如有）
+        $qs = strstr($redirect, '?');
+        return $base . ($qs !== false ? $qs : '');
+    }
+    return 'index.php';
+}
+
+$errorMsg   = '';
+$lockoutMsg = '';
+$infoMsg    = ($_GET['reason'] ?? '') === 'timeout' ? '閒置逾時已自動登出，請重新登入。' : '';
+
+if (isLoginLocked()) {
+    $lockoutMsg = '登入失敗次數過多，請 ' . ceil(lockoutSecondsRemaining() / 60) . ' 分鐘後再試。';
+} elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
 
@@ -36,7 +93,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $user = $stmt->fetch();
 
             if ($user && password_verify($password, $user['password_hash'])) {
-                // 登入成功：寫入 session
+                // 登入成功：清除失敗計數、重建 session
+                resetLoginAttempts();
                 session_regenerate_id(true); // 防 session fixation
                 $_SESSION['user'] = [
                     'id'            => $user['id'],
@@ -44,13 +102,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'role'          => $user['role'],
                     'employee_name' => $user['employee_name'],
                 ];
-                // 導向原本要去的頁面，或預設首頁
                 $redirect = $_GET['redirect'] ?? '';
-                $safe     = filter_var($redirect, FILTER_VALIDATE_URL) === false && strpos($redirect, '//') === false;
-                header('Location: ' . ($safe && $redirect ? $redirect : 'index.php'));
+                header('Location: ' . safeRedirect($redirect));
                 exit;
             } else {
-                $errorMsg = '帳號或密碼錯誤';
+                recordLoginFailure();
+                if (isLoginLocked()) {
+                    $lockoutMsg = '登入失敗次數過多，請 ' . ceil(lockoutSecondsRemaining() / 60) . ' 分鐘後再試。';
+                } else {
+                    $remaining = LOGIN_MAX_ATTEMPTS - getLoginAttempts()['count'];
+                    $errorMsg  = '帳號或密碼錯誤' . ($remaining <= 3 ? "（還剩 {$remaining} 次機會）" : '');
+                }
             }
         } catch (PDOException $e) {
             error_log('Login DB error: ' . $e->getMessage());
@@ -122,27 +184,37 @@ body { display: flex; align-items: center; justify-content: center; min-height: 
       <div class="logo-sub">請登入以繼續</div>
     </div>
 
-    <?php if ($errorMsg): ?>
+    <?php if ($lockoutMsg): ?>
+    <div class="msg msg-error" style="margin-bottom:16px">
+      🔒 <?php echo htmlspecialchars($lockoutMsg); ?>
+    </div>
+    <?php elseif ($errorMsg): ?>
     <div class="msg msg-error" style="margin-bottom:16px">
       ⚠️ <?php echo htmlspecialchars($errorMsg); ?>
     </div>
+    <?php elseif ($infoMsg): ?>
+    <div class="msg msg-info" style="margin-bottom:16px">
+      ⏱️ <?php echo htmlspecialchars($infoMsg); ?>
+    </div>
     <?php endif; ?>
 
-    <form method="post">
+    <form method="post" <?php if ($lockoutMsg) echo 'onsubmit="return false"'; ?>>
       <div class="login-field">
         <label>帳號</label>
         <input type="text" name="username" class="login-input"
                placeholder="請輸入帳號"
                value="<?php echo htmlspecialchars($_POST['username'] ?? ''); ?>"
-               autocomplete="username" required autofocus>
+               autocomplete="username" required autofocus
+               <?php if ($lockoutMsg) echo 'disabled'; ?>>
       </div>
       <div class="login-field">
         <label>密碼</label>
         <input type="password" name="password" class="login-input"
                placeholder="請輸入密碼"
-               autocomplete="current-password" required>
+               autocomplete="current-password" required
+               <?php if ($lockoutMsg) echo 'disabled'; ?>>
       </div>
-      <button type="submit" class="login-btn">🔑 登入</button>
+      <button type="submit" class="login-btn" <?php if ($lockoutMsg) echo 'disabled style="opacity:0.5;cursor:not-allowed"'; ?>>🔑 登入</button>
     </form>
 
     <div class="login-hint">

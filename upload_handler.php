@@ -1,8 +1,11 @@
 <?php
 include_once __DIR__ . '/functions.php';
 include_once __DIR__ . '/db.php';
+include_once __DIR__ . '/auth.php';
+requireLogin();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') exit;
+verifyCsrf();
 
 $name           = $_POST['name']           ?? '未知';
 $start          = $_POST['start']          ?? '00:00';
@@ -43,6 +46,7 @@ try {
     ]);
 } catch (Exception $e) {
     $dbError = $e->getMessage();
+    error_log('upload_handler DB error: ' . $e->getMessage());
 }
 
 ?>
@@ -92,7 +96,7 @@ try {
     <?php if(empty($dbError)): ?>
     <div class="msg msg-success" style="margin-top:12px">✅ 已同步寫入資料庫</div>
     <?php else: ?>
-    <div class="msg msg-error" style="margin-top:12px">⚠️ 資料庫寫入失敗：<?php echo htmlspecialchars($dbError); ?></div>
+    <div class="msg msg-error" style="margin-top:12px">⚠️ 資料庫寫入失敗，請聯繫管理員。</div>
     <?php endif; ?>
 
     <div class="btn-row" style="margin-top:18px">

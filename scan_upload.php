@@ -138,6 +138,7 @@ $isAdmin = isAdmin();
               <input type="hidden" name="carry_side1" value="<?php echo htmlspecialchars($carryData); ?>">
               <input type="hidden" name="prefill_yearmonth" value="<?php echo htmlspecialchars($prefillYM); ?>">
               <input type="hidden" name="skip_scan" value="1">
+              <?php csrfField(); ?>
               <button type="submit" style="background:white;color:#4A148C;border:1.5px solid #7C4DFF;border-radius:6px;padding:8px 16px;font-size:0.85em;font-weight:700;cursor:pointer;width:100%">
                 ✅ 不掃第二面，直接回到確認畫面
               </button>
@@ -150,6 +151,7 @@ $isAdmin = isAdmin();
             <input type="hidden" name="carry_side1" value="<?php echo htmlspecialchars($carryData); ?>">
             <input type="hidden" name="prefill_yearmonth" value="<?php echo htmlspecialchars($prefillYM); ?>">
           <?php endif; ?>
+          <?php csrfField(); ?>
           <div class="upload-zone" id="zone-scan">
             <span class="upload-icon">📸</span>
             <div class="upload-text">選擇或拍攝整張打卡卡片<br><strong>支援 JPG / PNG</strong></div>

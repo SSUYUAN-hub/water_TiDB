@@ -5,6 +5,11 @@ include_once __DIR__ . '/db.php';
 include_once __DIR__ . '/auth.php';
 requireLogin();
 
+// CSRF 驗證（POST 請求才驗）
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verifyCsrf();
+}
+
 $geminiKey = $_ENV['GEMINI_API_KEY'] ?? $_SERVER['GEMINI_API_KEY'] ?? '';
 
 $employeeName   = $_POST['employee_name'] ?? '未命名';
@@ -150,7 +155,7 @@ PROMPT;
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 30);
         $response = curl_exec($ch);
         $curlErr  = curl_error($ch);

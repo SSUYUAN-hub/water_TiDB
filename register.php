@@ -1,11 +1,49 @@
 <?php
 require_once __DIR__ . '/vendor/autoload.php';
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/auth.php';
 
 // 已登入者不需要此頁
 if (session_status() === PHP_SESSION_NONE) session_start();
+sendSecurityHeaders();
 if (isset($_SESSION['user'])) {
     header('Location: index.php'); exit;
+}
+
+// ── Rate Limiting（防止短時間大量申請）────────────────
+// 同一個 session：10 分鐘內最多送出 3 次
+const REG_MAX_ATTEMPTS  = 3;
+const REG_WINDOW_SEC    = 600;
+
+function isRegRateLimited(): bool {
+    $r = $_SESSION['reg_attempts'] ?? ['count' => 0, 'first_at' => 0];
+    if ($r['count'] === 0) return false;
+    if ((time() - $r['first_at']) > REG_WINDOW_SEC) return false;
+    return $r['count'] >= REG_MAX_ATTEMPTS;
+}
+
+function recordRegAttempt(): void {
+    $r = $_SESSION['reg_attempts'] ?? ['count' => 0, 'first_at' => 0];
+    if ($r['count'] === 0 || (time() - $r['first_at']) > REG_WINDOW_SEC) {
+        $r = ['count' => 0, 'first_at' => time()];
+    }
+    $r['count']++;
+    $_SESSION['reg_attempts'] = $r;
+}
+
+// ── 個資遮罩輔助（用於 log，避免原始資料出現在記錄中）──
+function maskIdNumber(string $id): string {
+    // A123456789 → A1****6789
+    return strlen($id) >= 6
+        ? substr($id, 0, 2) . '****' . substr($id, -4)
+        : '****';
+}
+
+function maskPhone(string $phone): string {
+    // 0912345678 → 0912***678
+    return strlen($phone) >= 7
+        ? substr($phone, 0, 4) . '***' . substr($phone, -3)
+        : '****';
 }
 
 // ── 確保資料表存在 ───────────────────────────────────────
@@ -41,63 +79,75 @@ $message = '';
 $pendingDate = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = trim($_POST['username']  ?? '');
-    $password = $_POST['password']       ?? '';
-    $realName = trim($_POST['real_name'] ?? '');
-    $idNumber = strtoupper(trim($_POST['id_number'] ?? ''));
-    $phone    = trim($_POST['phone']     ?? '');
-
-    // 基本驗證
-    if (empty($username) || strlen($password) < 6 || empty($realName) || empty($idNumber) || empty($phone)) {
+    // Rate limit 檢查（優先於任何資料庫操作）
+    if (isRegRateLimited()) {
         $status  = 'error';
-        $message = '所有欄位皆為必填，且密碼至少 6 個字元';
-    } elseif (!preg_match('/^[A-Z][12]\d{8}$/', $idNumber)) {
-        $status  = 'error';
-        $message = '身分證字號格式不正確（例：A123456789）';
+        $message = '送出次數過多，請稍後再試。';
     } else {
-        $db = getDB();
+        $username = trim($_POST['username']  ?? '');
+        $password = $_POST['password']       ?? '';
+        $realName = trim($_POST['real_name'] ?? '');
+        $idNumber = strtoupper(trim($_POST['id_number'] ?? ''));
+        $phone    = trim($_POST['phone']     ?? '');
 
-        // 1. 黑名單檢查
-        $blStmt = $db->prepare('SELECT id FROM account_blacklist WHERE id_number = ? LIMIT 1');
-        $blStmt->execute([$idNumber]);
-        if ($blStmt->fetch()) {
-            $status = 'blacklist';
+        // 基本驗證
+        $pwError = validatePasswordStrength($password);
+        if (empty($username) || !empty($pwError) || empty($realName) || empty($idNumber) || empty($phone)) {
+            $status  = 'error';
+            $message = !empty($pwError) ? $pwError : '所有欄位皆為必填';
+        } elseif (!preg_match('/^[A-Z][12]\d{8}$/', $idNumber)) {
+            $status  = 'error';
+            $message = '身分證字號格式不正確（例：A123456789）';
         } else {
-            // 2. 已存在 users 表（已核准帳號）
-            $userStmt = $db->prepare('SELECT id FROM users WHERE username = ? LIMIT 1');
-            $userStmt->execute([$username]);
-            // 也檢查身分證是否已在 users（透過 account_requests approved）
-            $idUserStmt = $db->prepare(
-                "SELECT r.id FROM account_requests r WHERE r.id_number = ? AND r.status = 'approved' LIMIT 1"
-            );
-            $idUserStmt->execute([$idNumber]);
-            if ($userStmt->fetch() || $idUserStmt->fetch()) {
-                $status = 'duplicate_user';
+            $db = getDB();
+            recordRegAttempt(); // 只在格式驗證通過後才計入
+
+            // 1. 黑名單檢查
+            $blStmt = $db->prepare('SELECT id FROM account_blacklist WHERE id_number = ? LIMIT 1');
+            $blStmt->execute([$idNumber]);
+            if ($blStmt->fetch()) {
+                $status = 'blacklist';
             } else {
-                // 3. 已有 pending 申請
-                $pendStmt = $db->prepare(
-                    "SELECT created_at FROM account_requests WHERE id_number = ? AND status = 'pending' LIMIT 1"
+                // 2. 已存在 users 表（已核准帳號）
+                $userStmt = $db->prepare('SELECT id FROM users WHERE username = ? LIMIT 1');
+                $userStmt->execute([$username]);
+                $idUserStmt = $db->prepare(
+                    "SELECT r.id FROM account_requests r WHERE r.id_number = ? AND r.status = 'approved' LIMIT 1"
                 );
-                $pendStmt->execute([$idNumber]);
-                $pendRow = $pendStmt->fetch();
-                if ($pendRow) {
-                    $status = 'duplicate_pending';
-                    $dt = new DateTime($pendRow['created_at']);
-                    $roc = ((int)$dt->format('Y') - 1911);
-                    $pendingDate = $roc . '年' . $dt->format('n') . '月' . $dt->format('j') . '日';
+                $idUserStmt->execute([$idNumber]);
+                if ($userStmt->fetch() || $idUserStmt->fetch()) {
+                    $status = 'duplicate_user';
                 } else {
-                    // 4. 寫入申請
-                    try {
-                        $hash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
-                        $ins = $db->prepare(
-                            'INSERT INTO account_requests (username, password_hash, real_name, id_number, phone)
-                             VALUES (?, ?, ?, ?, ?)'
-                        );
-                        $ins->execute([$username, $hash, $realName, $idNumber, $phone]);
-                        $status = 'success';
-                    } catch (PDOException $e) {
-                        $status  = 'error';
-                        $message = '系統發生錯誤，請稍後再試';
+                    // 3. 已有 pending 申請
+                    $pendStmt = $db->prepare(
+                        "SELECT created_at FROM account_requests WHERE id_number = ? AND status = 'pending' LIMIT 1"
+                    );
+                    $pendStmt->execute([$idNumber]);
+                    $pendRow = $pendStmt->fetch();
+                    if ($pendRow) {
+                        $status = 'duplicate_pending';
+                        $dt = new DateTime($pendRow['created_at']);
+                        $roc = ((int)$dt->format('Y') - 1911);
+                        $pendingDate = $roc . '年' . $dt->format('n') . '月' . $dt->format('j') . '日';
+                    } else {
+                        // 4. 寫入申請
+                        try {
+                            $hash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
+                            $ins = $db->prepare(
+                                'INSERT INTO account_requests (username, password_hash, real_name, id_number, phone)
+                                 VALUES (?, ?, ?, ?, ?)'
+                            );
+                            $ins->execute([$username, $hash, $realName, $idNumber, $phone]);
+                            $status = 'success';
+                            // log 用遮罩後的資料，不記錄原始個資
+                            error_log('register: new request username=' . $username
+                                . ' id=' . maskIdNumber($idNumber)
+                                . ' phone=' . maskPhone($phone));
+                        } catch (PDOException $e) {
+                            $status  = 'error';
+                            $message = '系統發生錯誤，請稍後再試';
+                            error_log('register DB error: ' . $e->getMessage());
+                        }
                     }
                 }
             }
@@ -219,9 +269,9 @@ body { display:flex; align-items:center; justify-content:center; min-height:100v
                autocomplete="username" required>
       </div>
       <div class="reg-field">
-        <label>密碼（至少 6 個字元）<span style="color:var(--red-500)">*</span></label>
+        <label>密碼（至少 8 個字元，需含數字）<span style="color:var(--red-500)">*</span></label>
         <input type="password" name="password" class="reg-input"
-               placeholder="設定登入密碼" autocomplete="new-password" required>
+               placeholder="設定登入密碼" autocomplete="new-password" minlength="8" required>
       </div>
       <div class="reg-field">
         <label>真實姓名 <span style="color:var(--red-500)">*</span></label>

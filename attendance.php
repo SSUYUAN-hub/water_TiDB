@@ -364,6 +364,7 @@ function outputExcelMonthAll(string $yearMonth, array $empGrouped, array $allEmp
 //  POST 處理
 // ══════════════════════════════════════════════════════════
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verifyCsrf();
     $action = $_POST['action'] ?? '';
 
     // 修改自己的密碼（所有登入使用者）
@@ -377,8 +378,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($newPass !== $newPass2) {
             $message = '新密碼兩次輸入不一致';
             $msgType = 'error';
-        } elseif (strlen($newPass) < 6) {
-            $message = '新密碼至少需要 6 個字元';
+        } elseif (($pwErr = validatePasswordStrength($newPass)) !== '') {
+            $message = $pwErr;
             $msgType = 'error';
         } else {
             $stmt = getDB()->prepare('SELECT password_hash FROM users WHERE id = ?');
@@ -1301,6 +1302,7 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
                     <div class="edit-panel" id="edit">
                         <div class="panel-title">✏️ 編輯出勤紀錄 — <?php echo htmlspecialchars($editRow['work_date']); ?></div>
                         <form method="post">
+                            <?php csrfField(); ?>
                             <input type="hidden" name="action" value="edit">
                             <input type="hidden" name="id" value="<?php echo $editRow['id']; ?>">
                             <div class="edit-grid">
@@ -1682,18 +1684,19 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
         <div class="card" style="margin-top:14px">
             <div class="card-title">🔑 修改登入密碼</div>
             <form method="post" onsubmit="return validatePwForm()">
+                <?php csrfField(); ?>
                 <input type="hidden" name="action" value="change_password">
                 <div style="margin-bottom:12px">
                     <label style="font-size:0.78em;color:var(--grey-500);font-weight:600;display:block;margin-bottom:5px">目前密碼</label>
                     <input type="password" name="old_password" class="form-input" placeholder="輸入目前密碼" required>
                 </div>
                 <div style="margin-bottom:12px">
-                    <label style="font-size:0.78em;color:var(--grey-500);font-weight:600;display:block;margin-bottom:5px">新密碼（至少 6 碼）</label>
-                    <input type="password" name="new_password" id="pw-new" class="form-input" placeholder="輸入新密碼" minlength="6" required>
+                    <label style="font-size:0.78em;color:var(--grey-500);font-weight:600;display:block;margin-bottom:5px">新密碼（至少 8 碼，需含數字）</label>
+                    <input type="password" name="new_password" id="pw-new" class="form-input" placeholder="輸入新密碼" minlength="8" required>
                 </div>
                 <div style="margin-bottom:16px">
                     <label style="font-size:0.78em;color:var(--grey-500);font-weight:600;display:block;margin-bottom:5px">確認新密碼</label>
-                    <input type="password" name="new_password2" id="pw-new2" class="form-input" placeholder="再次輸入新密碼" minlength="6" required>
+                    <input type="password" name="new_password2" id="pw-new2" class="form-input" placeholder="再次輸入新密碼" minlength="8" required>
                 </div>
                 <button type="submit" class="btn btn-primary">🔐 確認修改密碼</button>
             </form>
@@ -2011,7 +2014,7 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
                 return false;
             }
             if (n1.length < 6) {
-                alert('新密碼至少需要 6 個字元');
+                alert('新密碼至少需要 8 個字元，並包含一個數字');
                 return false;
             }
             return true;

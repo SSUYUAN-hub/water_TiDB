@@ -6,6 +6,7 @@ include_once __DIR__ . '/auth.php';
 requireLogin();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: index.php'); exit; }
+verifyCsrf();
 
 $action = $_POST['action'] ?? 'calc';
 

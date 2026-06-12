@@ -15,6 +15,7 @@ $message = '';
 $msgType = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verifyCsrf();
     $action = $_POST['action'] ?? '';
 
     if ($action === 'add') {
@@ -286,6 +287,7 @@ $hourlyEmps   = array_filter($employees, fn($e) => $e['type'] === 'hourly');
 <div class="card" style="margin-bottom:14px">
   <div class="card-title">➕ 新增員工</div>
   <form method="post" id="addForm">
+              <?php csrfField(); ?>
     <input type="hidden" name="action" value="add">
     <div class="form-row">
       <div class="fg">
@@ -336,6 +338,7 @@ $hourlyEmps   = array_filter($employees, fn($e) => $e['type'] === 'hourly');
   </div>
   <div style="display:flex;gap:8px;margin-left:auto">
     <form method="post" style="margin:0">
+              <?php csrfField(); ?>
       <input type="hidden" name="action" value="export_employees">
       <button type="submit" class="btn btn-export btn-sm">📊 匯出 Excel</button>
     </form>

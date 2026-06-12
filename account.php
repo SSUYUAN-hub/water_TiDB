@@ -10,6 +10,7 @@ $curUser    = currentUser();
 $isSysAdmin = isSysAdmin(); // 只有 role='admin' 才是系統管理
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verifyCsrf();
     $action = $_POST['action'] ?? '';
 
     // ── 通用安全攔截：非系統管理不得操作 role=admin 的帳號 ──
@@ -36,8 +37,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // 非系統管理不得新增 admin 角色
         if ($urole === 'admin' && !$isSysAdmin) {
             $message = '⛔ 無權限新增系統管理帳號'; $msgType = 'error';
-        } elseif (empty($uname) || strlen($upass) < 6) {
-            $message = '帳號不能空白，且密碼至少 6 個字元'; $msgType = 'error';
+        } elseif (empty($uname) || ($pwErr = validatePasswordStrength($upass)) !== '') {
+            $message = !empty($uname) ? $pwErr : '帳號不能空白'; $msgType = 'error';
         } else {
             try {
                 $hashedPass = password_hash($upass, PASSWORD_BCRYPT, ['cost' => 12]);
@@ -82,8 +83,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($action === 'reset_password') {
         $uid   = (int)($_POST['u_id']     ?? 0);
         $upass = $_POST['u_new_password'] ?? '';
-        if (strlen($upass) < 6) {
-            $message = '新密碼至少需要 6 個字元'; $msgType = 'error';
+        $pwErr = validatePasswordStrength($upass);
+        if ($pwErr !== '') {
+            $message = $pwErr; $msgType = 'error';
         } else {
             $hashedPass = password_hash($upass, PASSWORD_BCRYPT, ['cost' => 12]);
             $stmt = getDB()->prepare('UPDATE users SET password_hash = ? WHERE id = ?');
@@ -419,6 +421,7 @@ $blacklist = getDB()->query('SELECT * FROM account_blacklist ORDER BY rejected_a
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
       <!-- 全部覆蓋 -->
       <form method="post" style="margin:0">
+              <?php csrfField(); ?>
         <input type="hidden" name="action"          value="resolve_conflict">
         <input type="hidden" name="conflict_emp"    value="<?php echo htmlspecialchars($cf['emp_name']); ?>">
         <input type="hidden" name="conflict_choice" value="overwrite">
@@ -428,6 +431,7 @@ $blacklist = getDB()->query('SELECT * FROM account_blacklist ORDER BY rejected_a
       </form>
       <!-- 保留全部 -->
       <form method="post" style="margin:0">
+              <?php csrfField(); ?>
         <input type="hidden" name="action"          value="resolve_conflict">
         <input type="hidden" name="conflict_emp"    value="<?php echo htmlspecialchars($cf['emp_name']); ?>">
         <input type="hidden" name="conflict_choice" value="keep">
@@ -436,6 +440,7 @@ $blacklist = getDB()->query('SELECT * FROM account_blacklist ORDER BY rejected_a
       <?php if ($conflictCount > 1): ?>
       <!-- 僅覆蓋勾選項目 -->
       <form method="post" id="selective-form" style="margin:0">
+              <?php csrfField(); ?>
         <input type="hidden" name="action"          value="resolve_conflict">
         <input type="hidden" name="conflict_emp"    value="<?php echo htmlspecialchars($cf['emp_name']); ?>">
         <input type="hidden" name="conflict_choice" value="selective">
@@ -469,6 +474,7 @@ $blacklist = getDB()->query('SELECT * FROM account_blacklist ORDER BY rejected_a
   <div class="card">
     <div class="card-title">➕ 新增帳號</div>
     <form method="post">
+              <?php csrfField(); ?>
       <input type="hidden" name="action" value="add_user">
       <div class="form-row">
         <div class="fg">
@@ -534,7 +540,8 @@ $blacklist = getDB()->query('SELECT * FROM account_blacklist ORDER BY rejected_a
         <td><?php echo htmlspecialchars($req['phone']); ?></td>
         <td>
           <form method="post" class="approve-form"
-                onsubmit="return confirm('確定核准「<?php echo htmlspecialchars($req['username']); ?>」的申請？')">
+                onsubmit="return confirm('確定核准「<?php echo htmlspecialchars($req['username']); ?>
+              <?php csrfField(); ?>」的申請？')">
             <input type="hidden" name="action" value="approve_request">
             <input type="hidden" name="req_id" value="<?php echo $req['id']; ?>">
             <select name="req_role" id="req-role-<?php echo $req['id']; ?>"
@@ -557,7 +564,8 @@ $blacklist = getDB()->query('SELECT * FROM account_blacklist ORDER BY rejected_a
         </td>
         <td>
           <form method="post" class="reject-wrap"
-                onsubmit="return confirm('確定拒絕「<?php echo htmlspecialchars($req['real_name']); ?>」並加入黑名單？')">
+                onsubmit="return confirm('確定拒絕「<?php echo htmlspecialchars($req['real_name']); ?>
+              <?php csrfField(); ?>」並加入黑名單？')">
             <input type="hidden" name="action" value="reject_request">
             <input type="hidden" name="req_id" value="<?php echo $req['id']; ?>">
             <input type="text" name="reject_reason" placeholder="原因（選填）">
@@ -588,7 +596,8 @@ $blacklist = getDB()->query('SELECT * FROM account_blacklist ORDER BY rejected_a
         <td style="font-size:0.85em;color:var(--grey-600)"><?php echo $bl['reason'] ? htmlspecialchars($bl['reason']) : '—'; ?></td>
         <td>
           <form method="post" style="margin:0"
-                onsubmit="return confirm('確定從黑名單移除「<?php echo htmlspecialchars($bl['real_name']); ?>」？')">
+                onsubmit="return confirm('確定從黑名單移除「<?php echo htmlspecialchars($bl['real_name']); ?>
+              <?php csrfField(); ?>」？')">
             <input type="hidden" name="action" value="remove_blacklist">
             <input type="hidden" name="bl_id"  value="<?php echo $bl['id']; ?>">
             <button type="submit" class="btn btn-ghost btn-sm">🗑️ 移除</button>
@@ -668,6 +677,7 @@ $blacklist = getDB()->query('SELECT * FROM account_blacklist ORDER BY rejected_a
           <span style="font-size:0.8em;color:var(--grey-300)">🔒 無權限</span>
           <?php else: ?>
           <form method="post" class="inline-form">
+              <?php csrfField(); ?>
             <input type="hidden" name="action" value="rename_user">
             <input type="hidden" name="u_id"   value="<?php echo $u['id']; ?>">
             <input type="text" name="u_new_username"
@@ -682,11 +692,12 @@ $blacklist = getDB()->query('SELECT * FROM account_blacklist ORDER BY rejected_a
           <span style="font-size:0.8em;color:var(--grey-300)">🔒 無權限</span>
           <?php else: ?>
           <form method="post" class="inline-form">
+              <?php csrfField(); ?>
             <input type="hidden" name="action"     value="reset_password">
             <input type="hidden" name="u_id"       value="<?php echo $u['id']; ?>">
             <input type="hidden" name="u_username" value="<?php echo htmlspecialchars($u['username']); ?>">
             <input type="password" name="u_new_password"
-                   placeholder="新密碼" minlength="6" required autocomplete="new-password">
+                   placeholder="新密碼（8碼含數字）" minlength="8" required autocomplete="new-password">
             <button type="submit" class="btn btn-ghost btn-sm">🔑 修改</button>
           </form>
           <?php endif; ?>
@@ -698,7 +709,8 @@ $blacklist = getDB()->query('SELECT * FROM account_blacklist ORDER BY rejected_a
           <span style="font-size:0.8em;color:var(--grey-300)">🔒 無權限</span>
           <?php else: ?>
           <form method="post" style="margin:0"
-                onsubmit="return confirm('確定刪除帳號「<?php echo htmlspecialchars($u['username']); ?>」？')">
+                onsubmit="return confirm('確定刪除帳號「<?php echo htmlspecialchars($u['username']); ?>
+              <?php csrfField(); ?>」？')">
             <input type="hidden" name="action"     value="delete_user">
             <input type="hidden" name="u_id"       value="<?php echo $u['id']; ?>">
             <input type="hidden" name="u_username" value="<?php echo htmlspecialchars($u['username']); ?>">

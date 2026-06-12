@@ -8,6 +8,44 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// ── Session 閒置逾時（2 小時）────────────────────────
+const SESSION_IDLE_TIMEOUT = 7200; // 秒
+
+function checkSessionTimeout(): void {
+    if (!isset($_SESSION['user'])) return;
+    $last = $_SESSION['_last_activity'] ?? 0;
+    if ($last > 0 && (time() - $last) > SESSION_IDLE_TIMEOUT) {
+        session_unset();
+        session_destroy();
+        session_start();
+        header('Location: login.php?reason=timeout');
+        exit;
+    }
+    $_SESSION['_last_activity'] = time();
+}
+
+// ── HTTP 安全標頭 ─────────────────────────────────────
+function sendSecurityHeaders(): void {
+    header('X-Frame-Options: DENY');
+    header('X-Content-Type-Options: nosniff');
+    header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
+    header('Referrer-Policy: strict-origin-when-cross-origin');
+    header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'");
+    header('X-Powered-By: ');
+}
+
+// ── 密碼強度驗證 ─────────────────────────────────────
+// 回傳錯誤訊息字串；空字串代表通過
+function validatePasswordStrength(string $pw): string {
+    if (strlen($pw) < 8) {
+        return '密碼至少需要 8 個字元';
+    }
+    if (!preg_match('/\d/', $pw)) {
+        return '密碼需包含至少一個數字';
+    }
+    return '';
+}
+
 // ── 取得目前登入的使用者資訊 ──────────────────────────
 function currentUser(): ?array {
     return $_SESSION['user'] ?? null;
@@ -71,6 +109,8 @@ function roleIcon(?string $role = null): string {
 
 // ── 強制登入（未登入則導向 login.php）────────────────
 function requireLogin(): void {
+    sendSecurityHeaders();
+    checkSessionTimeout();
     if (!isLoggedIn()) {
         header('Location: login.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
         exit;
@@ -86,5 +126,29 @@ function requireAdmin(): void {
         echo '<h2>⛔ 權限不足</h2><p>此頁面僅限管理員存取。</p>';
         echo '<a href="attendance.php">← 返回出勤查詢</a></div>';
         exit;
+    }
+}
+
+// ── CSRF Token：產生（或取得已存在的）────────────────
+function csrfToken(): string {
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+// ── CSRF Token：輸出隱藏欄位（直接在表單內呼叫）────
+function csrfField(): void {
+    echo '<input type="hidden" name="csrf_token" value="'
+        . htmlspecialchars(csrfToken(), ENT_QUOTES) . '">';
+}
+
+// ── CSRF Token：驗證（POST 處理最頂端呼叫）──────────
+// 驗證失敗直接終止，不回傳任何有用訊息
+function verifyCsrf(): void {
+    $submitted = $_POST['csrf_token'] ?? '';
+    if (!hash_equals(csrfToken(), $submitted)) {
+        http_response_code(403);
+        exit('請求驗證失敗，請重新整理頁面後再試。');
     }
 }
