@@ -276,6 +276,7 @@ $hourlyEmps   = array_filter($employees, fn($e) => $e['type'] === 'hourly');
 </div>
 
 <div class="main-wrap footer-pad" style="margin-top:14px">
+<input type="hidden" id="global-csrf-token" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken(), ENT_QUOTES); ?>">
 
 <?php if (!empty($message)): ?>
 <div class="msg msg-<?php echo $msgType==='success'?'success':'error'; ?>" style="margin-bottom:14px">
@@ -734,6 +735,7 @@ function executeUpdate() {
   form.method = 'post'; form.style.display = 'none';
   const addHidden = (n,v) => { const i = document.createElement('input'); i.type='hidden'; i.name=n; i.value=v; form.appendChild(i); };
   addHidden('action', 'bulk_update');
+  addHidden('csrf_token', document.querySelector('input[name="csrf_token"]').value);
   for (const [name, d] of Object.entries(rows)) {
     addHidden(`rows[${name}][type]`,            d.type);
     addHidden(`rows[${name}][wage]`,            d.wage);
@@ -785,6 +787,7 @@ function executeDelete() {
   const form = document.createElement('form');
   form.method = 'post'; form.style.display = 'none';
   const addHidden = (n,v) => { const i = document.createElement('input'); i.type='hidden'; i.name=n; i.value=v; form.appendChild(i); };
+  addHidden('csrf_token', document.querySelector('input[name="csrf_token"]').value);
   if (_pendingDeleteNames.length === 1) {
     addHidden('action', 'delete');
     addHidden('name', _pendingDeleteNames[0]);

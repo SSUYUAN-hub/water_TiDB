@@ -8,3 +8,4 @@ credentials.json
 .env
 composer.lock
 generate_hash.php
+/紀錄/

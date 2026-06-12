@@ -891,6 +891,7 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
     </div>
 
     <div class="main-wrap footer-pad" style="margin-top:14px">
+    <input type="hidden" id="global-csrf-token" name="csrf_token" value="<?php echo htmlspecialchars(csrfToken(), ENT_QUOTES); ?>">
 
         <?php if (!empty($message)): ?>
             <div class="msg msg-<?php echo $msgType === 'success' ? 'success' : 'error'; ?>" style="margin-bottom:14px">
@@ -1803,6 +1804,7 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
         form.method = 'post';
         form.style.display = 'none';
         const addHidden = (n, v) => { const i = document.createElement('input'); i.type='hidden'; i.name=n; i.value=v; form.appendChild(i); };
+        addHidden('csrf_token', document.querySelector('input[name="csrf_token"]').value);
         if (pendingDeleteIds.length === 1) {
             addHidden('action', 'delete');
             addHidden('id', pendingDeleteIds[0]);
