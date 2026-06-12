@@ -64,8 +64,26 @@ if ($skipScan && $isSide2) {
 
 if (!$skipScan && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['card_image'])) {
     try {
-        $rawImage  = file_get_contents($_FILES['card_image']['tmp_name']);
-        $mime      = mime_content_type($_FILES['card_image']['tmp_name']);
+        $uploadErr = $_FILES['card_image']['error'] ?? UPLOAD_ERR_NO_FILE;
+        if ($uploadErr !== UPLOAD_ERR_OK) {
+            $uploadErrMsg = [
+                UPLOAD_ERR_INI_SIZE   => '圖片超過伺服器上傳大小限制（upload_max_filesize）',
+                UPLOAD_ERR_FORM_SIZE  => '圖片超過表單大小限制',
+                UPLOAD_ERR_PARTIAL    => '圖片僅部分上傳，請重試',
+                UPLOAD_ERR_NO_FILE    => '未選擇圖片，請重新選取後上傳',
+                UPLOAD_ERR_NO_TMP_DIR => '伺服器暫存目錄不存在',
+                UPLOAD_ERR_CANT_WRITE => '圖片寫入暫存失敗',
+                UPLOAD_ERR_EXTENSION  => '圖片被伺服器擴充套件攔截',
+            ];
+            throw new Exception($uploadErrMsg[$uploadErr] ?? "上傳失敗（錯誤碼 {$uploadErr}）");
+        }
+        $tmpPath = $_FILES['card_image']['tmp_name'] ?? '';
+        if (empty($tmpPath) || !file_exists($tmpPath)) {
+            throw new Exception('圖片暫存檔不存在，請重新上傳');
+        }
+
+        $rawImage  = file_get_contents($tmpPath);
+        $mime      = mime_content_type($tmpPath);
         if (!in_array($mime, ['image/jpeg','image/png','image/webp','image/heic','image/heif'])) {
             $mime = 'image/jpeg';
         }
