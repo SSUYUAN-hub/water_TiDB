@@ -65,27 +65,6 @@ $isAdmin = isAdmin();
       background: rgba(255,255,255,0.15); border-radius: 20px;
       padding: 4px 12px; font-size: 0.8em; color: rgba(255,255,255,0.9);
     }
-    /* ── 漢堡選單：手機版向下滑出 dropdown ── */
-    .topbar { position: relative; }
-    @media (max-width: 540px) {
-      .topbar-nav {
-        display: none;
-        position: absolute; top: 100%; right: 0;
-        min-width: 160px;
-        background: var(--green-800, #2e7d32);
-        border-radius: 0 0 10px 10px;
-        box-shadow: 0 6px 20px rgba(0,0,0,0.25);
-        flex-direction: column; padding: 6px 0; z-index: 200;
-      }
-      .topbar-nav.open { display: flex; }
-      .topbar-nav .topbar-link,
-      .topbar-nav .user-chip {
-        display: block; width: 100%; text-align: left;
-        padding: 10px 18px; border-radius: 0;
-        background: transparent; box-sizing: border-box; white-space: nowrap;
-      }
-      .topbar-nav .topbar-link:hover { background: rgba(255,255,255,0.12); }
-    }
   </style>
 </head>
 <body>
@@ -144,14 +123,9 @@ $isAdmin = isAdmin();
         </div>
       </div>
 
-      <!-- 模式切換 -->
-      <div class="mode-tabs">
-        <button type="button" class="mode-tab active" onclick="switchMode('scan')">📋 整張卡片辨識</button>
-        <button type="button" class="mode-tab" onclick="switchMode('single')">📷 單日辨識</button>
-      </div>
 
-      <!-- 整張卡片 -->
-      <div class="mode-panel active" id="panel-scan">
+      <!-- 整張卡片辨識 -->
+      <div class="card" id="panel-scan">
         <div class="msg msg-info" style="font-size:0.82em">
           <strong>📋 整張卡片辨識（推薦）</strong><br>
           拍攝整張月份卡片，AI 解析所有日期與兩段工時，逐日確認後一次寫入資料庫。
@@ -196,33 +170,6 @@ $isAdmin = isAdmin();
         </form>
       </div>
 
-      <!-- 單日辨識 -->
-      <div class="mode-panel" id="panel-single" style="display:none">
-        <div class="msg msg-info" style="font-size:0.82em">
-          <strong>📷 單日辨識</strong><br>
-          拍攝當天那一列，辨識上下班時間，確認後即時寫入資料庫。
-        </div>
-        <form action="config.php" method="post" enctype="multipart/form-data">
-          <input type="hidden" name="employee_name" id="single-emp-name" value="">
-          <div class="upload-zone" id="zone-single">
-            <span class="upload-icon">📷</span>
-            <div class="upload-text">選擇或拍攝當日打卡照片<br><strong>支援 JPG / PNG</strong></div>
-            <div class="file-btn-wrap">
-              <label class="file-label file-label-cam" for="file-single-cam">📷 拍照</label>
-              <label class="file-label file-label-album" for="file-single-album">🖼️ 從相簿/檔案選取</label>
-            </div>
-            <input type="file" id="file-single-cam" class="file-input-hidden" accept="image/*" capture="environment"
-              onchange="syncFile(this,'file-single-album','preview','single-file-status')">
-            <input type="file" id="file-single-album" class="file-input-hidden" name="card_image" accept="image/*"
-              onchange="syncFile(this,'file-single-cam','preview','single-file-status')" required>
-          </div>
-          <div id="single-file-status" style="font-size:0.82em;color:var(--green-700);margin-top:6px;display:none;font-weight:600"></div>
-          <img id="preview" src="#" alt="預覽">
-          <button type="submit" class="btn btn-primary btn-full" style="margin-top:12px">
-            📷 送出辨識
-          </button>
-        </form>
-      </div>
 
     <?php endif; ?>
   </div>
@@ -232,14 +179,6 @@ $isAdmin = isAdmin();
       const nav = document.getElementById('topbar-nav');
       nav.classList.toggle('open');
       btn.setAttribute('aria-expanded', nav.classList.contains('open'));
-    }
-
-    function switchMode(mode) {
-      document.querySelectorAll('.mode-tab').forEach((t, i) => {
-        t.classList.toggle('active', (mode === 'scan' && i === 0) || (mode === 'single' && i === 1));
-      });
-      document.getElementById('panel-scan').style.display = mode === 'scan' ? '' : 'none';
-      document.getElementById('panel-single').style.display = mode === 'single' ? '' : 'none';
     }
 
     function filterEmployees(kw) {
@@ -259,8 +198,7 @@ $isAdmin = isAdmin();
       // 未選取：顯示提示，清空 hidden input
       if (!name) {
         meta.innerHTML = "<span style='color:var(--amber-500)'>⚠️ 請先從上方選擇員工後再上傳照片</span>";
-        document.getElementById('scan-emp-name').value   = '';
-        document.getElementById('single-emp-name').value = '';
+        document.getElementById('scan-emp-name').value = '';
         setUploadEnabled(false);
         return;
       }
@@ -274,20 +212,17 @@ $isAdmin = isAdmin();
       const rule       = type === 'fulltime' ? '超過8h計加班費' : '時薪×工時';
       meta.innerHTML =
         badge + ' ' + wageUnit + ' $' + parseInt(rate).toLocaleString() + wageSuffix + ' &nbsp;·&nbsp; ' + rule;
-      document.getElementById('scan-emp-name').value   = name;
-      document.getElementById('single-emp-name').value = name;
+      document.getElementById('scan-emp-name').value = name;
       setUploadEnabled(true);
       hideEmpAlert();
     }
 
     // 上傳區塊視覺鎖定（員工未選時淡化）
     function setUploadEnabled(enabled) {
-      ['zone-scan','zone-single'].forEach(id => {
-        const z = document.getElementById(id);
-        if (!z) return;
-        z.style.opacity  = enabled ? '' : '0.45';
-        z.style.pointerEvents = enabled ? '' : 'none';
-      });
+      const z = document.getElementById('zone-scan');
+      if (!z) return;
+      z.style.opacity      = enabled ? '' : '0.45';
+      z.style.pointerEvents = enabled ? '' : 'none';
     }
 
     // 顯示 / 隱藏行內提示訊息
@@ -309,20 +244,16 @@ $isAdmin = isAdmin();
       document.getElementById('emp-select').focus();
     }
     function hideEmpAlert() {
-      ['scan','single'].forEach(id => {
-        const el = document.getElementById('emp-alert-' + id);
-        if (el) el.style.display = 'none';
-      });
+      const el = document.getElementById('emp-alert-scan');
+      if (el) el.style.display = 'none';
     }
 
     function syncFile(srcInput, otherInputId, previewId, statusId) {
       const file = srcInput.files[0];
       if (!file) return;
       // 員工未選取：阻擋並提示
-      const currentMode = document.querySelector('.mode-tab.active') &&
-        document.getElementById('panel-single').style.display === '' ? 'single' : 'scan';
       if (!document.getElementById('scan-emp-name').value) {
-        showEmpAlert(currentMode);
+        showEmpAlert('scan');
         srcInput.value = '';
         return;
       }
@@ -349,16 +280,6 @@ $isAdmin = isAdmin();
           }
         });
       }
-      // 單日辨識 form
-      const singleForm = document.querySelector('#panel-single form');
-      if (singleForm) {
-        singleForm.addEventListener('submit', function(e) {
-          if (!document.getElementById('single-emp-name').value) {
-            e.preventDefault();
-            showEmpAlert('single');
-          }
-        });
-      }
     });
 
     <?php if ($nextSide && $prefillEmp): ?>
@@ -371,7 +292,6 @@ $isAdmin = isAdmin();
           }
         }
       }
-      switchMode('scan');
     });
     <?php endif; ?>
 

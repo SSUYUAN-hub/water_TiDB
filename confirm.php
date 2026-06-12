@@ -5,8 +5,6 @@ include_once __DIR__ . '/db.php';
 include_once __DIR__ . '/auth.php';
 requireLogin();
 
-if (session_status() === PHP_SESSION_NONE) session_start();
-
 $done    = isset($_GET['done']);
 $isAdmin = isAdmin();
 

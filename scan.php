@@ -1,17 +1,11 @@
 <?php
-session_start();
 require_once __DIR__ . '/vendor/autoload.php';
 include_once __DIR__ . '/functions.php';
 include_once __DIR__ . '/db.php';
 include_once __DIR__ . '/auth.php';
 requireLogin();
 
-if (file_exists(__DIR__ . '/.env')) {
-    $dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
-    $dotenv->load();
-}
-$apiKey     = $_ENV['GOOGLE_API_KEY']  ?? $_SERVER['GOOGLE_API_KEY']  ?? '';
-$geminiKey  = $_ENV['GEMINI_API_KEY'] ?? $_SERVER['GEMINI_API_KEY'] ?? $apiKey;
+$geminiKey = $_ENV['GEMINI_API_KEY'] ?? $_SERVER['GEMINI_API_KEY'] ?? '';
 
 $employeeName   = $_POST['employee_name'] ?? '未命名';
 $empData        = getEmployee($employeeName);

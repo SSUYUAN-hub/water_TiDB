@@ -5,7 +5,6 @@ include_once __DIR__ . '/db.php';
 include_once __DIR__ . '/auth.php';
 requireLogin();
 
-if (session_status() === PHP_SESSION_NONE) session_start();
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: index.php'); exit; }
 
 $action = $_POST['action'] ?? 'calc';
@@ -122,7 +121,6 @@ $wage           = (int)($_POST['hourly_rate']     ?? 180);
 $nightAllowance = (int)($_POST['night_allowance'] ?? 0);
 $yearMonth      = $_POST['year_month']     ?? date('Y-m');
 $days           = $_POST['day']            ?? [];
-$hourlyRate     = ($empType === 'fulltime') ? round($wage / 30 / 8, 4) : $wage;
 
 // 雙面合併
 $carrySide1Raw = $_POST['carry_side1'] ?? '';
@@ -143,31 +141,12 @@ if ($carrySide1Raw) {
 }
 
 // 輔助函式
-function timeDiff2($s, $e): float {
-    try {
-        $st = new DateTime($s); $et = new DateTime($e);
-        if ($et < $st) $et->modify('+1 day');
-        $d = $st->diff($et);
-        return $d->h + ($d->i / 60) + ($d->days * 24);
-    } catch (Exception $ex) { return 0; }
-}
 function latestTime($t1, $t2): string {
     $m1 = (int)(new DateTime($t1))->format('H') * 60 + (int)(new DateTime($t1))->format('i');
     $m2 = (int)(new DateTime($t2))->format('H') * 60 + (int)(new DateTime($t2))->format('i');
     if ($m1 < 360) $m1 += 1440;
     if ($m2 < 360) $m2 += 1440;
     return $m1 >= $m2 ? $t1 : $t2;
-}
-function calcHours(float $total, float $rate, string $type, bool $hasBreak): array {
-    if ($type === 'hourly') {
-        return ['total_hours' => round($total, 2), 'overtime_hours' => 0, 'overtime_pay' => 0, 'salary' => (int)round($total * $rate)];
-    }
-    $bt     = ($hasBreak && $total >= 8) ? 0.5 : 0;
-    $actual = max($total - $bt, 0);
-    $ot1    = min(max($actual - 8, 0), 2);
-    $ot2    = max($actual - 10, 0);
-    $otPay  = $ot1 * $rate * (4 / 3) + $ot2 * $rate * (5 / 3);
-    return ['total_hours' => round($actual, 2), 'overtime_hours' => round($ot1 + $ot2, 2), 'overtime_pay' => (int)ceil($otPay), 'salary' => (int)ceil($otPay)];
 }
 
 // 逐日計算
@@ -184,11 +163,20 @@ foreach ($days as $day) {
     $hasBreak = ($day['has_break'] ?? '1') === '1';
     $ymParts  = explode('-', $yearMonth);
     if (!checkdate((int)$ymParts[1], (int)$date, (int)$ymParts[0])) continue;
-    $h1    = ($s1s && $s1e) ? timeDiff2($s1s, $s1e) : 0;
-    $h2    = ($s2s && $s2e) ? timeDiff2($s2s, $s2e) : 0;
-    $total = $h1 + $h2;
-    if ($total <= 0) continue;
-    $sal = calcHours($total, (float)$hourlyRate, $empType, $hasBreak);
+
+    // 用 functions.php 的 calculateSalary() 分段計算（第一段套休息/加班邏輯，第二段不套休息）
+    $sal1 = ($s1s && $s1e) ? calculateSalary($s1s, $s1e, $wage, $empType, $hasBreak)
+                           : ['total_hours' => 0, 'overtime_hours' => 0, 'overtime_pay' => 0, 'salary' => 0];
+    $sal2 = ($s2s && $s2e) ? calculateSalary($s2s, $s2e, $wage, $empType, false)
+                           : ['total_hours' => 0, 'overtime_hours' => 0, 'overtime_pay' => 0, 'salary' => 0];
+
+    $totalH    = $sal1['total_hours']    + $sal2['total_hours'];
+    $totalOTH  = $sal1['overtime_hours'] + $sal2['overtime_hours'];
+    $totalOTP  = $sal1['overtime_pay']   + $sal2['overtime_pay'];
+    $baseSal   = ($empType === 'fulltime') ? $totalOTP : ($sal1['salary'] + $sal2['salary']);
+
+    if ($totalH <= 0) continue;
+
     $latestEnd = '';
     if ($s1e && $s2e)  $latestEnd = latestTime($s1e, $s2e);
     elseif ($s1e)      $latestEnd = $s1e;
@@ -198,7 +186,7 @@ foreach ($days as $day) {
         : shouldApplyNightAllowance($latestEnd, $nightAllowance);
     if (($day['night_cancel'] ?? '0') === '1') $useNight = false;
     $nightPay  = $useNight ? $nightAllowance : 0;
-    $daySalary = $sal['salary'] + $nightPay;
+    $daySalary = $baseSal + $nightPay;
     $records[] = [
         'date'           => $yearMonth . '-' . str_pad($date, 2, '0', STR_PAD_LEFT),
         's1_start'       => $s1s,
@@ -206,16 +194,16 @@ foreach ($days as $day) {
         's2_start'       => $s2s,
         's2_end'         => $s2e,
         'has_break'      => $hasBreak,
-        'total_hours'    => $sal['total_hours'],
-        'overtime_hours' => $sal['overtime_hours'],
-        'overtime_pay'   => $sal['overtime_pay'],
+        'total_hours'    => round($totalH,   2),
+        'overtime_hours' => round($totalOTH, 2),
+        'overtime_pay'   => $totalOTP,
         'night_pay'      => $nightPay,
         'salary'         => $daySalary,
     ];
     $totalSalary   += $daySalary;
-    $totalHoursAll += $sal['total_hours'];
-    $totalOTHours  += $sal['overtime_hours'];
-    $totalOTPay    += $sal['overtime_pay'];
+    $totalHoursAll += $totalH;
+    $totalOTHours  += $totalOTH;
+    $totalOTPay    += $totalOTP;
     $totalNightPay += $nightPay;
 }
 

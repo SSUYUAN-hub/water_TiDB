@@ -1,14 +1,6 @@
 <?php
-require_once __DIR__ . '/vendor/autoload.php';
 include_once __DIR__ . '/functions.php';
 include_once __DIR__ . '/db.php';
-
-use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\IOFactory;
-use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
-use PhpOffice\PhpSpreadsheet\Style\Fill;
-use PhpOffice\PhpSpreadsheet\Style\Alignment;
-use PhpOffice\PhpSpreadsheet\Style\Border;
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') exit;
 
@@ -53,70 +45,6 @@ try {
     $dbError = $e->getMessage();
 }
 
-// ══════════════════════════════════════════════════════════
-//  原有 Excel 寫入邏輯（保留不動）
-// ══════════════════════════════════════════════════════════
-$fileName = '員工出勤紀錄.xlsx';
-$spreadsheet = new Spreadsheet(); $spreadsheet->removeSheetByIndex(0);
-
-if ($spreadsheet->sheetNameExists($name)) {
-    $sheet = $spreadsheet->getSheetByName($name);
-    $lastRow = $sheet->getHighestRow() + 1;
-} else {
-    $sheet = $spreadsheet->createSheet(); $sheet->setTitle($name);
-    if ($empType === 'fulltime') {
-        $headers = $nightAllowance>0
-            ? ['日期','上班','下班','有無休息','實際工時(h)','加班時數(h)','加班費($)','夜班津貼($)','加班費+津貼($)']
-            : ['日期','上班','下班','有無休息','實際工時(h)','加班時數(h)','加班費($)'];
-        $endCol = $nightAllowance>0 ? 'I' : 'G';
-    } else {
-        $headers = $nightAllowance>0
-            ? ['日期','上班','下班','工作時數(h)','夜班津貼($)','當日薪資($)']
-            : ['日期','上班','下班','工作時數(h)','當日薪資($)'];
-        $endCol = $nightAllowance>0 ? 'F' : 'E';
-    }
-    foreach (range('A',$endCol) as $ci=>$col) $sheet->setCellValue($col.'1',$headers[$ci]);
-    $sheet->getStyle('A1:'.$endCol.'1')->applyFromArray([
-        'font'=>['bold'=>true,'color'=>['rgb'=>'FFFFFF'],'size'=>10],
-        'fill'=>['fillType'=>Fill::FILL_SOLID,'startColor'=>['rgb'=>'1B5E20']],
-        'alignment'=>['horizontal'=>Alignment::HORIZONTAL_CENTER],
-        'borders'=>['allBorders'=>['borderStyle'=>Border::BORDER_THIN,'color'=>['rgb'=>'FFFFFF']]],
-    ]);
-    $sheet->getRowDimension(1)->setRowHeight(22);
-    $lastRow = 2;
-}
-
-$endCol = $sheet->getHighestColumn();
-if ($endCol==='A') $endCol = ($empType==='fulltime') ? ($nightAllowance>0?'I':'G') : ($nightAllowance>0?'F':'E');
-$bg = ($lastRow%2===0) ? 'F1F8E9' : 'FFFFFF';
-
-if ($empType==='fulltime') {
-    $bl = $hasBreak ? '有' : '無';
-    $sheet->setCellValue('A'.$lastRow,$date); $sheet->setCellValue('B'.$lastRow,$start);
-    $sheet->setCellValue('C'.$lastRow,$end);  $sheet->setCellValue('D'.$lastRow,$bl);
-    $sheet->setCellValue('E'.$lastRow,$totalHours); $sheet->setCellValue('F'.$lastRow,$overtimeHours);
-    $sheet->setCellValue('G'.$lastRow,$overtimePay);
-    if ($nightAllowance>0) { $sheet->setCellValue('H'.$lastRow,$nightPay); $sheet->setCellValue('I'.$lastRow,$totalSalary); $endCol='I'; }
-    else $endCol='G';
-    if (!$hasBreak) $bg='FFF3E0';
-    if ($overtimeHours>0) $bg='FFFDE7';
-} else {
-    $sheet->setCellValue('A'.$lastRow,$date); $sheet->setCellValue('B'.$lastRow,$start);
-    $sheet->setCellValue('C'.$lastRow,$end);  $sheet->setCellValue('D'.$lastRow,$totalHours);
-    if ($nightAllowance>0) { $sheet->setCellValue('E'.$lastRow,$nightPay); $sheet->setCellValue('F'.$lastRow,$totalSalary); $endCol='F'; }
-    else { $sheet->setCellValue('E'.$lastRow,$totalSalary); $endCol='E'; }
-}
-if ($nightPay>0) { $bg='F3E5F5'; }
-
-$sheet->getStyle('A'.$lastRow.':'.$endCol.$lastRow)->applyFromArray([
-    'fill'=>['fillType'=>Fill::FILL_SOLID,'startColor'=>['rgb'=>$bg]],
-    'alignment'=>['horizontal'=>Alignment::HORIZONTAL_CENTER],
-    'borders'=>['allBorders'=>['borderStyle'=>Border::BORDER_THIN,'color'=>['rgb'=>'CCCCCC']]],
-    'font'=>['size'=>10],
-]);
-$sheet->getStyle($endCol.$lastRow)->applyFromArray(['font'=>['bold'=>true,'color'=>['rgb'=>'C62828']]]);
-foreach (range('A',$endCol) as $col) $sheet->getColumnDimension($col)->setAutoSize(true);
-(new Xlsx($spreadsheet))->save($fileName);
 ?>
 <!DOCTYPE html>
 <html lang="zh-TW">
@@ -169,7 +97,6 @@ foreach (range('A',$endCol) as $col) $sheet->getColumnDimension($col)->setAutoSi
 
     <div class="btn-row" style="margin-top:18px">
       <a href="scan_upload.php" class="btn btn-primary">繼續下一筆</a>
-      <a href="<?php echo $fileName; ?>" class="btn btn-blue" download>⬇ 下載 Excel</a>
     </div>
   </div>
 </div>
