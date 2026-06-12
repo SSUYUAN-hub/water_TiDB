@@ -68,10 +68,10 @@ function outputExcel(array $rows, array $emp, string $yearMonth): void
             foreach (
                 [
                     'A' => $r['work_date'],
-                    'B' => fmtTime($r['s1_start']),
-                    'C' => fmtTime($r['s1_end']),
-                    'D' => fmtTime($r['s2_start']),
-                    'E' => fmtTime($r['s2_end']),
+                    'B' => fmtTime($r['s1_start'] ?? ''),
+                    'C' => fmtTime($r['s1_end']   ?? ''),
+                    'D' => fmtTime($r['s2_start'] ?? ''),
+                    'E' => fmtTime($r['s2_end']   ?? ''),
                     'F' => $bl,
                     'G' => $r['total_hours'],
                     'H' => $r['overtime_hours'],
@@ -91,10 +91,10 @@ function outputExcel(array $rows, array $emp, string $yearMonth): void
             foreach (
                 [
                     'A' => $r['work_date'],
-                    'B' => fmtTime($r['s1_start']),
-                    'C' => fmtTime($r['s1_end']),
-                    'D' => fmtTime($r['s2_start']),
-                    'E' => fmtTime($r['s2_end']),
+                    'B' => fmtTime($r['s1_start'] ?? ''),
+                    'C' => fmtTime($r['s1_end']   ?? ''),
+                    'D' => fmtTime($r['s2_start'] ?? ''),
+                    'E' => fmtTime($r['s2_end']   ?? ''),
                     'F' => $r['total_hours']
                 ] as $c => $v
             ) {

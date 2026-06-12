@@ -106,7 +106,7 @@ function calculateSalary($startTime, $endTime, $wage, string $empType = 'fulltim
 // 時間格式化：截掉秒數，只保留 HH:MM
 // 支援 "HH:MM:SS"、"HH:MM"、空值
 // =============================================
-function fmtTime(string $t): string {
+function fmtTime(?string $t): string {
     if (empty($t)) return '';
     // 只取前5碼（HH:MM）
     return substr($t, 0, 5);

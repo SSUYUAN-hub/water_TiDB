@@ -302,9 +302,10 @@ function getAttendanceSummaryByMonth(string $yearMonth): array
  * 判斷是否觸發夜班津貼
  * 規則：下班時間超過 23:00，或凌晨 06:00 以前（跨夜）
  */
-function shouldApplyNightAllowance(string $endTime, int $nightAllowance): bool
+function shouldApplyNightAllowance(?string $endTime, int $nightAllowance): bool
 {
     if ($nightAllowance <= 0) return false;
+    if (empty($endTime)) return false;
     try {
         $end    = new DateTime($endTime);
         $endMin = (int)$end->format('H') * 60 + (int)$end->format('i');

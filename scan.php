@@ -364,7 +364,7 @@ function timeDiffHours($start, $end): float {
 }
 
 // 判斷是否觸發夜班（下班時間為 00:00～05:59）
-function checkNightShift(string $endTime, string $startTime = ''): bool {
+function checkNightShift(?string $endTime, ?string $startTime = ''): bool {
     if (empty($endTime)) return false;
     try {
         $endMin = (int)(new DateTime($endTime))->format('H') * 60
