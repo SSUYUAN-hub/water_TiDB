@@ -201,6 +201,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]));
                 $message = "✅ 已覆蓋「{$empName}」的身分證及電話資料"; $msgType = 'success';
             }
+        } elseif ($choice === 'selective' && $empName) {
+            $empRow = getEmployee($empName);
+            if ($empRow) {
+                $fields = $_POST['overwrite_fields'] ?? [];
+                $update = [
+                    'type'            => $empRow['type'],
+                    'hourly_rate'     => $empRow['hourly_rate'],
+                    'night_allowance' => $empRow['night_allowance'] ?? 0,
+                    'hire_date'       => $empRow['hire_date'] ?? null,
+                    'id_number'       => $empRow['id_number'],
+                    'phone'           => $empRow['phone'],
+                ];
+                $labels = [];
+                if (in_array('id_number', $fields)) {
+                    $update['id_number'] = $_POST['new_id'] ?? $empRow['id_number'];
+                    $labels[] = '身分證字號';
+                }
+                if (in_array('phone', $fields)) {
+                    $update['phone'] = $_POST['new_phone'] ?? $empRow['phone'];
+                    $labels[] = '連絡電話';
+                }
+                if ($labels) {
+                    updateEmployee($empName, $update);
+                    $message = "✅ 已更新「{$empName}」的" . implode('、', $labels); $msgType = 'success';
+                } else {
+                    $message = "未選擇任何欄位，已保留「{$empName}」的原有資料"; $msgType = 'success';
+                }
+            }
         } else {
             $message = "已保留「{$empName}」的原有資料"; $msgType = 'success';
         }
@@ -343,7 +371,10 @@ $blacklist = getDB()->query('SELECT * FROM account_blacklist ORDER BY rejected_a
   <?php endif; ?>
 
   <?php if (!empty($_SESSION['emp_data_conflict'])): ?>
-  <?php $cf = $_SESSION['emp_data_conflict']; ?>
+  <?php $cf = $_SESSION['emp_data_conflict'];
+        $conflictCount = (($cf['old_id'] !== $cf['new_id']) ? 1 : 0)
+                       + (($cf['old_phone'] !== $cf['new_phone']) ? 1 : 0);
+  ?>
   <div class="card" style="border:2px solid var(--amber-400);margin-bottom:14px">
     <div class="card-title" style="color:#92400E">⚠️ 員工資料衝突確認</div>
     <p style="font-size:0.9em;color:var(--grey-700);margin:0 0 12px">
@@ -354,6 +385,9 @@ $blacklist = getDB()->query('SELECT * FROM account_blacklist ORDER BY rejected_a
         <th style="padding:8px 12px;background:var(--amber-100);color:#92400E;border:1px solid #FDE68A;text-align:left">欄位</th>
         <th style="padding:8px 12px;background:var(--amber-100);color:#92400E;border:1px solid #FDE68A;text-align:left">現有資料</th>
         <th style="padding:8px 12px;background:var(--amber-100);color:#92400E;border:1px solid #FDE68A;text-align:left">申請者填寫</th>
+        <?php if ($conflictCount > 1): ?>
+        <th style="padding:8px 12px;background:var(--amber-100);color:#92400E;border:1px solid #FDE68A;text-align:center;white-space:nowrap">選擇覆蓋</th>
+        <?php endif; ?>
       </tr></thead>
       <tbody>
         <?php if ($cf['old_id'] !== $cf['new_id']): ?>
@@ -361,6 +395,11 @@ $blacklist = getDB()->query('SELECT * FROM account_blacklist ORDER BY rejected_a
           <td style="padding:8px 12px;border:1px solid #eee">身分證字號</td>
           <td style="padding:8px 12px;border:1px solid #eee;color:var(--grey-500)"><?php echo htmlspecialchars($cf['old_id']); ?></td>
           <td style="padding:8px 12px;border:1px solid #eee;font-weight:700;color:var(--green-700)"><?php echo htmlspecialchars($cf['new_id']); ?></td>
+          <?php if ($conflictCount > 1): ?>
+          <td style="padding:8px 12px;border:1px solid #eee;text-align:center">
+            <input type="checkbox" name="sel_id_number" id="sel_id_number" value="1" style="width:16px;height:16px;cursor:pointer;accent-color:var(--green-700)">
+          </td>
+          <?php endif; ?>
         </tr>
         <?php endif; ?>
         <?php if ($cf['old_phone'] !== $cf['new_phone']): ?>
@@ -368,25 +407,60 @@ $blacklist = getDB()->query('SELECT * FROM account_blacklist ORDER BY rejected_a
           <td style="padding:8px 12px;border:1px solid #eee">連絡電話</td>
           <td style="padding:8px 12px;border:1px solid #eee;color:var(--grey-500)"><?php echo htmlspecialchars($cf['old_phone']); ?></td>
           <td style="padding:8px 12px;border:1px solid #eee;font-weight:700;color:var(--green-700)"><?php echo htmlspecialchars($cf['new_phone']); ?></td>
+          <?php if ($conflictCount > 1): ?>
+          <td style="padding:8px 12px;border:1px solid #eee;text-align:center">
+            <input type="checkbox" name="sel_phone" id="sel_phone" value="1" style="width:16px;height:16px;cursor:pointer;accent-color:var(--green-700)">
+          </td>
+          <?php endif; ?>
         </tr>
         <?php endif; ?>
       </tbody>
     </table>
-    <div style="display:flex;gap:10px">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <!-- 全部覆蓋 -->
       <form method="post" style="margin:0">
-        <input type="hidden" name="action"         value="resolve_conflict">
-        <input type="hidden" name="conflict_emp"   value="<?php echo htmlspecialchars($cf['emp_name']); ?>">
+        <input type="hidden" name="action"          value="resolve_conflict">
+        <input type="hidden" name="conflict_emp"    value="<?php echo htmlspecialchars($cf['emp_name']); ?>">
         <input type="hidden" name="conflict_choice" value="overwrite">
-        <input type="hidden" name="new_id"    value="<?php echo htmlspecialchars($cf['new_id']); ?>">
-        <input type="hidden" name="new_phone" value="<?php echo htmlspecialchars($cf['new_phone']); ?>">
+        <input type="hidden" name="new_id"          value="<?php echo htmlspecialchars($cf['new_id']); ?>">
+        <input type="hidden" name="new_phone"       value="<?php echo htmlspecialchars($cf['new_phone']); ?>">
         <button type="submit" class="btn btn-primary">✅ 覆蓋為申請者資料</button>
       </form>
+      <!-- 保留全部 -->
       <form method="post" style="margin:0">
         <input type="hidden" name="action"          value="resolve_conflict">
         <input type="hidden" name="conflict_emp"    value="<?php echo htmlspecialchars($cf['emp_name']); ?>">
         <input type="hidden" name="conflict_choice" value="keep">
         <button type="submit" class="btn btn-secondary">保留現有資料</button>
       </form>
+      <?php if ($conflictCount > 1): ?>
+      <!-- 僅覆蓋勾選項目 -->
+      <form method="post" id="selective-form" style="margin:0">
+        <input type="hidden" name="action"          value="resolve_conflict">
+        <input type="hidden" name="conflict_emp"    value="<?php echo htmlspecialchars($cf['emp_name']); ?>">
+        <input type="hidden" name="conflict_choice" value="selective">
+        <input type="hidden" name="new_id"          value="<?php echo htmlspecialchars($cf['new_id']); ?>">
+        <input type="hidden" name="new_phone"       value="<?php echo htmlspecialchars($cf['new_phone']); ?>">
+        <input type="hidden" name="overwrite_fields[]" id="sf-id-number" value="" disabled>
+        <input type="hidden" name="overwrite_fields[]" id="sf-phone"     value="" disabled>
+        <button type="submit" class="btn btn-ghost" onclick="return prepareSelective()">☑️ 僅覆蓋勾選項目</button>
+      </form>
+      <script>
+      function prepareSelective() {
+        const selId    = document.getElementById('sel_id_number');
+        const selPhone = document.getElementById('sel_phone');
+        const sfId     = document.getElementById('sf-id-number');
+        const sfPhone  = document.getElementById('sf-phone');
+        if (selId && selId.checked)    { sfId.value = 'id_number'; sfId.disabled = false; }
+        if (selPhone && selPhone.checked) { sfPhone.value = 'phone'; sfPhone.disabled = false; }
+        if (!sfId.value && !sfPhone.value) {
+          alert('請先勾選至少一個要覆蓋的欄位');
+          return false;
+        }
+        return true;
+      }
+      </script>
+      <?php endif; ?>
     </div>
   </div>
   <?php endif; ?>
