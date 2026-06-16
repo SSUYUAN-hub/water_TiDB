@@ -38,6 +38,69 @@ $pdo = new PDO($dsn, $user, $pass, [
 }
 
 // ══════════════════════════════════════════════════════════
+//  登入嘗試次數 CRUD（暴力破解防護用）
+// ══════════════════════════════════════════════════════════
+
+/**
+ * 確保 login_attempts 資料表存在（首次部署自動建立）
+ */
+function ensureLoginAttemptsTable(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    getDB()->exec("
+        CREATE TABLE IF NOT EXISTS login_attempts (
+            id         INT AUTO_INCREMENT PRIMARY KEY,
+            identifier VARCHAR(150) NOT NULL COMMENT 'REMOTE_ADDR:username',
+            attempts   INT          NOT NULL DEFAULT 1,
+            first_at   INT          NOT NULL COMMENT 'unix timestamp',
+            INDEX idx_identifier (identifier)
+        ) DEFAULT CHARSET=utf8mb4
+    ");
+}
+
+/**
+ * 取得指定 identifier 的嘗試紀錄，過期自動清除並回傳 null
+ */
+function getLoginAttemptRecord(string $identifier, int $lockoutSec): ?array {
+    ensureLoginAttemptsTable();
+    $db = getDB();
+    // 清除所有過期紀錄
+    $db->prepare('DELETE FROM login_attempts WHERE first_at < ?')
+       ->execute([time() - $lockoutSec]);
+    $stmt = $db->prepare('SELECT * FROM login_attempts WHERE identifier = ? LIMIT 1');
+    $stmt->execute([$identifier]);
+    $row = $stmt->fetch();
+    return $row ?: null;
+}
+
+/**
+ * 記錄一次登入失敗
+ */
+function recordLoginAttemptDB(string $identifier): void {
+    ensureLoginAttemptsTable();
+    $db = getDB();
+    $existing = $db->prepare('SELECT id FROM login_attempts WHERE identifier = ? LIMIT 1');
+    $existing->execute([$identifier]);
+    if ($existing->fetch()) {
+        $db->prepare('UPDATE login_attempts SET attempts = attempts + 1 WHERE identifier = ?')
+           ->execute([$identifier]);
+    } else {
+        $db->prepare('INSERT INTO login_attempts (identifier, attempts, first_at) VALUES (?, 1, ?)')
+           ->execute([$identifier, time()]);
+    }
+}
+
+/**
+ * 登入成功後清除紀錄
+ */
+function resetLoginAttemptDB(string $identifier): void {
+    ensureLoginAttemptsTable();
+    getDB()->prepare('DELETE FROM login_attempts WHERE identifier = ?')
+           ->execute([$identifier]);
+}
+
+// ══════════════════════════════════════════════════════════
 //  員工 CRUD（介面與原 JSON 版完全相同，其他頁面不用改）
 // ══════════════════════════════════════════════════════════
 

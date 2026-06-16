@@ -440,6 +440,7 @@ $ftNightAllow   = $ftNightDays > 0 && $totalNightPay > 0 ? (int)round($totalNigh
   <form action="batch_handler.php" method="post" id="confirm-form">
     <input type="hidden" name="action"     value="write">
     <input type="hidden" name="net_salary" id="h-net-salary" value="<?php echo $netSalary; ?>">
+    <?php csrfField(); ?>
 
     <!-- 薪資明細卡片 -->
     <div class="salary-card">

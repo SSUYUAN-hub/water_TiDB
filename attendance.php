@@ -448,7 +448,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $message = $stmt->rowCount() > 0 ? '🗑️ 已刪除該筆出勤紀錄' : '找不到該筆紀錄';
                 $msgType = $stmt->rowCount() > 0 ? 'success' : 'error';
             } catch (PDOException $e) {
-                $message = '刪除失敗：' . $e->getMessage();
+                error_log('attendance delete error: ' . $e->getMessage());
+                $message = $e->getCode() === '23000'
+                    ? '該筆紀錄有關聯資料，無法刪除'
+                    : '刪除失敗，請聯繫系統管理員';
                 $msgType = 'error';
             }
         }
@@ -465,7 +468,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $message = "🗑️ 已刪除 {$deleted} 筆出勤紀錄";
                     $msgType = 'success';
                 } catch (PDOException $e) {
-                    $message = '批次刪除失敗：' . $e->getMessage();
+                    error_log('attendance bulk_delete error: ' . $e->getMessage());
+                    $message = $e->getCode() === '23000'
+                        ? '部分紀錄有關聯資料，無法刪除'
+                        : '批次刪除失敗，請聯繫系統管理員';
                     $msgType = 'error';
                 }
             }
@@ -503,7 +509,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $upd->execute([':s1s'=>$s1Start?:null,':s1e'=>$s1End?:null,':s2s'=>$s2Start?:null,':s2e'=>$s2End?:null,':hb'=>$hasBreak?1:0,':th'=>$totalHours,':oth'=>$overtimeHours,':otp'=>$overtimePay,':np'=>$nightPay,':sal'=>$totalSalary,':id'=>$id]);
                     $saved++;
                 } catch (PDOException $e) {
-                    $errors[] = $row['work_date'] . '：' . $e->getMessage();
+                    error_log('attendance bulk_edit error [' . ($row['work_date'] ?? '?') . ']: ' . $e->getMessage());
+                    $errors[] = $e->getCode() === '23000'
+                        ? $row['work_date'] . '：資料格式衝突，請檢查輸入'
+                        : $row['work_date'] . '：更新失敗，請聯繫系統管理員';
                 }
             }
             $message = "✅ 已更新 {$saved} 筆紀錄" . (!empty($errors) ? '，部分失敗：' . implode('、', $errors) : '');
@@ -552,7 +561,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $message = '✅ 已更新並重新計算薪資';
                     $msgType = 'success';
                 } catch (PDOException $e) {
-                    $message = '更新失敗：' . $e->getMessage();
+                    error_log('attendance edit error [id=' . $id . ']: ' . $e->getMessage());
+                    $message = $e->getCode() === '23000'
+                        ? '資料格式衝突，請檢查輸入'
+                        : '更新失敗，請聯繫系統管理員';
                     $msgType = 'error';
                 }
             } else {

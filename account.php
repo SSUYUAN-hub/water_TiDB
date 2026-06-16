@@ -54,7 +54,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
                 $message = "✅ 帳號「{$uname}」已建立"; $msgType = 'success';
             } catch (PDOException $e) {
-                $message = ($e->getCode() === '23000') ? "帳號「{$uname}」已存在" : '建立失敗：'.$e->getMessage();
+                error_log('account add_user error: ' . $e->getMessage());
+                $message = ($e->getCode() === '23000') ? "帳號「{$uname}」已存在" : '建立失敗，請聯繫系統管理員';
                 $msgType = 'error';
             }
         }
@@ -74,7 +75,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $message = "✅ 帳號名稱已更新為「{$newUsername}」"; $msgType = 'success';
             } catch (PDOException $e) {
-                $message = ($e->getCode() === '23000') ? "帳號「{$newUsername}」已存在" : '更新失敗：'.$e->getMessage();
+                error_log('account rename_user error: ' . $e->getMessage());
+                $message = ($e->getCode() === '23000') ? "帳號「{$newUsername}」已存在" : '更新失敗，請聯繫系統管理員';
                 $msgType = 'error';
             }
         }
@@ -160,7 +162,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $message = "✅ 已核准帳號「{$row['username']}」"; $msgType = 'success';
             } catch (PDOException $e) {
-                $message = ($e->getCode() === '23000') ? "帳號「{$row['username']}」已存在" : '核准失敗：'.$e->getMessage();
+                error_log('account approve_request error: ' . $e->getMessage());
+                $message = ($e->getCode() === '23000') ? "帳號「{$row['username']}」已存在" : '核准失敗，請聯繫系統管理員';
                 $msgType = 'error';
             }
         }
@@ -181,7 +184,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 getDB()->prepare('UPDATE account_requests SET status="rejected", reject_reason=? WHERE id=?')->execute([$reason ?: null, $reqId]);
                 $message = "🚫 已拒絕「{$row['real_name']}」的申請並加入黑名單"; $msgType = 'success';
             } catch (PDOException $e) {
-                $message = '拒絕失敗：'.$e->getMessage(); $msgType = 'error';
+                error_log('account reject_request error: ' . $e->getMessage());
+                $message = '拒絕失敗，請聯繫系統管理員'; $msgType = 'error';
             }
         }
 

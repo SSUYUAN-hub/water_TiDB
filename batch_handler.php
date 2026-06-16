@@ -63,7 +63,10 @@ if ($action === 'write') {
                 'salary'         => $rec['salary'],
             ]);
         } catch (Exception $e) {
-            $dbErrors[] = $rec['date'] . '：' . $e->getMessage();
+            error_log('batch_handler saveAttendance error [' . ($rec['date'] ?? '?') . ']: ' . $e->getMessage());
+            $dbErrors[] = $e->getCode() === '23000'
+                ? $rec['date'] . '：資料格式衝突，請聯繫系統管理員'
+                : $rec['date'] . '：寫入失敗，請聯繫系統管理員';
         }
     }
 
@@ -84,7 +87,10 @@ if ($action === 'write') {
                 'note'             => null,
             ]);
         } catch (Exception $e) {
-            $dbErrors[] = '月結扣額：' . $e->getMessage();
+            error_log('batch_handler saveMonthlyDeduction error: ' . $e->getMessage());
+            $dbErrors[] = $e->getCode() === '23000'
+                ? '月結扣額：資料格式衝突，請聯繫系統管理員'
+                : '月結扣額：寫入失敗，請聯繫系統管理員';
         }
     }
 

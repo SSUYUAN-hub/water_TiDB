@@ -21,38 +21,54 @@ if (isLoggedIn()) {
     exit;
 }
 
-// ── 暴力破解防護設定 ─────────────────────────────────
-const LOGIN_MAX_ATTEMPTS = 10;   // 同一 IP 最多嘗試次數
+// ── 暴力破解防護設定（DB-based，清除 Cookie 無法繞過）──
+const LOGIN_MAX_ATTEMPTS = 10;   // 同一 IP+帳號 最多嘗試次數
 const LOGIN_LOCKOUT_SEC  = 600;  // 鎖定時間（秒）：10 分鐘
 
-function getLoginAttempts(): array {
-    return $_SESSION['login_attempts'] ?? ['count' => 0, 'first_at' => 0];
+/**
+ * 產生 identifier：REMOTE_ADDR:username
+ * 不使用 X-Forwarded-For 避免 header 偽造風險
+ */
+function loginIdentifier(string $username): string {
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    return $ip . ':' . mb_strtolower(trim($username));
 }
 
-function recordLoginFailure(): void {
-    $a = getLoginAttempts();
-    $now = time();
-    // 若超過鎖定期，重置計數
-    if ($a['count'] > 0 && ($now - $a['first_at']) > LOGIN_LOCKOUT_SEC) {
-        $a = ['count' => 0, 'first_at' => 0];
+function getLoginAttempts(string $identifier): array {
+    try {
+        $row = getLoginAttemptRecord($identifier, LOGIN_LOCKOUT_SEC);
+        if (!$row) return ['count' => 0, 'first_at' => 0];
+        return ['count' => (int)$row['attempts'], 'first_at' => (int)$row['first_at']];
+    } catch (Exception $e) {
+        error_log('login_attempts DB error (read): ' . $e->getMessage());
+        return ['count' => 0, 'first_at' => 0]; // DB 異常時放行，不阻擋正常使用者
     }
-    if ($a['count'] === 0) $a['first_at'] = $now;
-    $a['count']++;
-    $_SESSION['login_attempts'] = $a;
 }
 
-function resetLoginAttempts(): void {
-    unset($_SESSION['login_attempts']);
+function recordLoginFailure(string $identifier): void {
+    try {
+        recordLoginAttemptDB($identifier);
+    } catch (Exception $e) {
+        error_log('login_attempts DB error (write): ' . $e->getMessage());
+    }
 }
 
-function isLoginLocked(): bool {
-    $a = getLoginAttempts();
+function resetLoginAttempts(string $identifier): void {
+    try {
+        resetLoginAttemptDB($identifier);
+    } catch (Exception $e) {
+        error_log('login_attempts DB error (reset): ' . $e->getMessage());
+    }
+}
+
+function isLoginLocked(string $identifier): bool {
+    $a = getLoginAttempts($identifier);
     if ($a['count'] < LOGIN_MAX_ATTEMPTS) return false;
     return (time() - $a['first_at']) < LOGIN_LOCKOUT_SEC;
 }
 
-function lockoutSecondsRemaining(): int {
-    $a = getLoginAttempts();
+function lockoutSecondsRemaining(string $identifier): int {
+    $a = getLoginAttempts($identifier);
     $remaining = LOGIN_LOCKOUT_SEC - (time() - $a['first_at']);
     return max(0, (int)$remaining);
 }
@@ -76,10 +92,14 @@ $errorMsg   = '';
 $lockoutMsg = '';
 $infoMsg    = ($_GET['reason'] ?? '') === 'timeout' ? '閒置逾時已自動登出，請重新登入。' : '';
 
-if (isLoginLocked()) {
-    $lockoutMsg = '登入失敗次數過多，請 ' . ceil(lockoutSecondsRemaining() / 60) . ' 分鐘後再試。';
+// 先取得 username（用於組合 identifier，GET 時用空字串）
+$_postUsername = trim($_POST['username'] ?? '');
+$_loginId      = loginIdentifier($_postUsername);
+
+if (isLoginLocked($_loginId)) {
+    $lockoutMsg = '登入失敗次數過多，請 ' . ceil(lockoutSecondsRemaining($_loginId) / 60) . ' 分鐘後再試。';
 } elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = trim($_POST['username'] ?? '');
+    $username = $_postUsername;
     $password = $_POST['password'] ?? '';
 
     if (empty($username) || empty($password)) {
@@ -94,7 +114,7 @@ if (isLoginLocked()) {
 
             if ($user && password_verify($password, $user['password_hash'])) {
                 // 登入成功：清除失敗計數、重建 session
-                resetLoginAttempts();
+                resetLoginAttempts($_loginId);
                 session_regenerate_id(true); // 防 session fixation
                 $_SESSION['user'] = [
                     'id'            => $user['id'],
@@ -106,11 +126,11 @@ if (isLoginLocked()) {
                 header('Location: ' . safeRedirect($redirect));
                 exit;
             } else {
-                recordLoginFailure();
-                if (isLoginLocked()) {
-                    $lockoutMsg = '登入失敗次數過多，請 ' . ceil(lockoutSecondsRemaining() / 60) . ' 分鐘後再試。';
+                recordLoginFailure($_loginId);
+                if (isLoginLocked($_loginId)) {
+                    $lockoutMsg = '登入失敗次數過多，請 ' . ceil(lockoutSecondsRemaining($_loginId) / 60) . ' 分鐘後再試。';
                 } else {
-                    $remaining = LOGIN_MAX_ATTEMPTS - getLoginAttempts()['count'];
+                    $remaining = LOGIN_MAX_ATTEMPTS - getLoginAttempts($_loginId)['count'];
                     $errorMsg  = '帳號或密碼錯誤' . ($remaining <= 3 ? "（還剩 {$remaining} 次機會）" : '');
                 }
             }
