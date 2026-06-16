@@ -372,6 +372,8 @@ $ftNightAllow   = $ftNightDays > 0 && $totalNightPay > 0 ? (int)round($totalNigh
 </style>
 </head>
 <body>
+<input type="hidden" id="global-csrf-token" name="csrf_token"
+       value="<?php echo htmlspecialchars(csrfToken(), ENT_QUOTES); ?>">
 
 <div class="topbar">
   <div class="topbar-inner">
@@ -750,6 +752,7 @@ function recalcFromRates() {
 function saveRates() {
   <?php if ($isAdmin): ?>
   const data = {
+    csrf_token:       document.getElementById('global-csrf-token').value,
     labor_ins_rate:   (parseFloat(document.getElementById('inp-labor-rate').value)   / 100).toFixed(4),
     labor_ins_share:  (parseFloat(document.getElementById('inp-labor-share').value)  / 100).toFixed(4),
     health_ins_rate:  (parseFloat(document.getElementById('inp-health-rate').value)  / 100).toFixed(4),

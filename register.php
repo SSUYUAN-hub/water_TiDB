@@ -4,7 +4,7 @@ require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/auth.php';
 
 // 已登入者不需要此頁
-if (session_status() === PHP_SESSION_NONE) session_start();
+// session_start() 已由 auth.php require_once 時統一執行（含 cookie 安全旗標）
 sendSecurityHeaders();
 if (isset($_SESSION['user'])) {
     header('Location: index.php'); exit;

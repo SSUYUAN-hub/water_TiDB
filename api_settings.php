@@ -23,6 +23,14 @@ if (!$data) {
     exit;
 }
 
+// CSRF 驗證：JSON API 從 body 取 token，與 session 比對
+$submittedToken = $data['csrf_token'] ?? '';
+if (!hash_equals(csrfToken(), $submittedToken)) {
+    http_response_code(403);
+    echo json_encode(['ok' => false, 'error' => '請求驗證失敗']);
+    exit;
+}
+
 $allowed = ['labor_ins_rate', 'labor_ins_share', 'health_ins_rate', 'health_ins_share'];
 try {
     foreach ($allowed as $key) {

@@ -5,6 +5,10 @@
  */
 
 if (session_status() === PHP_SESSION_NONE) {
+    // Session Cookie 安全旗標（集中設定，全站統一生效）
+    ini_set('session.cookie_httponly', 1);
+    ini_set('session.cookie_secure',   1);
+    ini_set('session.cookie_samesite', 'Strict');
     session_start();
 }
 

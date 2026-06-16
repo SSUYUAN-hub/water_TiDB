@@ -1,5 +1,4 @@
 <?php
-session_start();
 include_once __DIR__ . '/auth.php';
 requireLogin();
 include_once __DIR__ . '/db.php';

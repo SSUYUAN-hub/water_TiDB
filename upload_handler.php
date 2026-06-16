@@ -17,6 +17,13 @@ $nightPay       = (int)($_POST['night_pay']       ?? 0);
 $nightAllowance = (int)($_POST['night_allowance'] ?? 0);
 $date           = date('Y-m-d');
 
+// 驗證員工姓名是否存在於資料庫，防止偽造任意姓名寫入
+$empRecord = getEmployee($name);
+if (!$empRecord) {
+    http_response_code(400);
+    exit('員工不存在');
+}
+
 $hourlyRate    = ($empType === 'fulltime') ? round($wage / 30 / 8, 4) : $wage;
 $salaryData    = calculateSalary($start, $end, $wage, $empType, $hasBreak);
 $totalHours    = $salaryData['total_hours'];

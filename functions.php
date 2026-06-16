@@ -95,6 +95,21 @@ function calculateSalaryHourly($startTime, $endTime, int $hourlyRate): array {
 // 時薪制傳入時薪
 // =============================================
 function calculateSalary($startTime, $endTime, $wage, string $empType = 'fulltime', bool $hasBreak = false): array {
+    // 格式驗證：只接受 HH:MM，拒絕空字串或非預期格式進入 DateTime 建構
+    $timePattern = '/^\d{2}:\d{2}$/';
+    if (!preg_match($timePattern, (string)$startTime) || !preg_match($timePattern, (string)$endTime)) {
+        error_log("calculateSalary: invalid time format start={$startTime} end={$endTime}");
+        return [
+            'total_hours'    => 0,
+            'normal_hours'   => 0,
+            'overtime_hours' => 0,
+            'overtime_pay'   => 0,
+            'salary'         => 0,
+            'hourly_rate'    => 0,
+            'has_break'      => $hasBreak,
+            'type'           => $empType,
+        ];
+    }
     if ($empType === 'hourly') {
         return calculateSalaryHourly($startTime, $endTime, (int)$wage);
     }
