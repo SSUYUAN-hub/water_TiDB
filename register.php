@@ -408,9 +408,9 @@ body { display:flex; align-items:center; justify-content:center; min-height:100v
     updateSubmit(idVerified);
   });
 
-  // 點擊 disabled 欄位時警告（監聽外層 div，因 disabled 元素不觸發 click）
+  // 點擊 disabled 欄位時警告（用 mousedown，因 disabled 元素不觸發 click）
   fields.forEach(function(f) {
-    f.closest('.reg-field').addEventListener('click', function () {
+    f.addEventListener('mousedown', function () {
       if (f.disabled) alert('請先完成身分證驗證');
     });
   });
