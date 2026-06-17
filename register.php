@@ -39,7 +39,7 @@ function recordRegAttempt(): void {
  */
 function hasConsecutivePattern(string $digits): bool {
     // 規則一：連續 4 個相同數字（如 1111、9999）
-    if (preg_match('/(\d){3}/', $digits)) return true;
+    if (preg_match('/(\\d)\\1{3}/', $digits)) return true;
     // 規則二：連續 4 個遞增或遞減順序（如 1234、9876）
     $seq_asc  = ['0123','1234','2345','3456','4567','5678','6789'];
     $seq_desc = ['9876','8765','7654','6543','5432','4321','3210'];
@@ -236,6 +236,15 @@ body { display:flex; align-items:center; justify-content:center; min-height:100v
 .reg-hint a { color:var(--green-700); text-decoration:none; font-weight:600; }
 .reg-hint a:hover { text-decoration:underline; }
 
+/* disabled 欄位 overlay */
+.reg-field { position:relative; }
+.field-overlay {
+  display:none; position:absolute;
+  top:28px; left:0; width:100%; height:calc(100% - 28px);
+  cursor:not-allowed; z-index:10;
+}
+.field-overlay.active { display:block; }
+
 /* 結果畫面 */
 .result-box {
   text-align:center; padding:32px 16px;
@@ -355,7 +364,7 @@ body { display:flex; align-items:center; justify-content:center; min-height:100v
                 W:32,X:30,Y:31,Z:33};
   // 連號檢查：連續 4 碼相同或順序視為假造字號
   function hasConsecutivePattern(digits) {
-    if (/(\d){3}/.test(digits)) return true;
+    if (/(\d)\1{3}/.test(digits)) return true;
     var asc  = ['0123','1234','2345','3456','4567','5678','6789'];
     var desc = ['9876','8765','7654','6543','5432','4321','3210'];
     var all = asc.concat(desc);
@@ -404,16 +413,28 @@ body { display:flex; align-items:center; justify-content:center; min-height:100v
     this.value = val;
     idVerified = validateTwId(val);
     verifyMsg.style.display = idVerified ? 'block' : 'none';
-    fields.forEach(function(f){ f.disabled = !idVerified; });
+    setFieldsLocked(!idVerified);
     updateSubmit(idVerified);
   });
 
-  // 點擊 disabled 欄位時警告（用 mousedown，因 disabled 元素不觸發 click）
+  // 點擊 disabled 欄位時警告
+  // disabled 元素不觸發任何滑鼠事件，改用透明 overlay div 攔截點擊
   fields.forEach(function(f) {
-    f.addEventListener('mousedown', function () {
-      if (f.disabled) alert('請先完成身分證驗證');
+    var overlay = document.createElement('div');
+    overlay.className = 'field-overlay active';
+    overlay.addEventListener('click', function () {
+      alert('請先完成身分證驗證');
     });
+    f.parentNode.appendChild(overlay);
+    f._overlay = overlay;
   });
+
+  function setFieldsLocked(locked) {
+    fields.forEach(function(f) {
+      f.disabled = locked;
+      f._overlay.className = 'field-overlay' + (locked ? ' active' : '');
+    });
+  }
 
   // 其他欄位有值時即時更新送出按鈕狀態
   fields.forEach(function(f) {
@@ -426,7 +447,7 @@ body { display:flex; align-items:center; justify-content:center; min-height:100v
   if (validateTwId(idInput.value)) {
     idVerified = true;
     verifyMsg.style.display = 'block';
-    fields.forEach(function(f){ f.disabled = false; });
+    setFieldsLocked(false);
     updateSubmit(true);
   }
 })();
