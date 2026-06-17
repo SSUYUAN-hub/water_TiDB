@@ -32,16 +32,37 @@ function recordRegAttempt(): void {
 }
 
 // ── 台灣身分證字號檢查碼驗證 ─────────────────────────────
+
+/**
+ * 檢查數字字串是否包含連續 4 碼相同或順序的數字
+ * 用於過濾 1111、1234 等明顯假造字號
+ */
+function hasConsecutivePattern(string $digits): bool {
+    // 規則一：連續 4 個相同數字（如 1111、9999）
+    if (preg_match('/(\d){3}/', $digits)) return true;
+    // 規則二：連續 4 個遞增或遞減順序（如 1234、9876）
+    $seq_asc  = ['0123','1234','2345','3456','4567','5678','6789'];
+    $seq_desc = ['9876','8765','7654','6543','5432','4321','3210'];
+    foreach (array_merge($seq_asc, $seq_desc) as $s) {
+        if (strpos($digits, $s) !== false) return true;
+    }
+    return false;
+}
+
 function validateTwId(string $id): bool {
     // 字母對應數字表（A=10 ... Z=35，按內政部對照）
     $map = ['A'=>10,'B'=>11,'C'=>12,'D'=>13,'E'=>14,'F'=>15,'G'=>16,'H'=>17,
             'I'=>34,'J'=>18,'K'=>19,'L'=>20,'M'=>21,'N'=>22,'O'=>35,'P'=>23,
             'Q'=>24,'R'=>25,'S'=>26,'T'=>27,'U'=>28,'V'=>29,'W'=>32,'X'=>30,
             'Y'=>31,'Z'=>33];
+    // 第一關：格式正則
     if (!preg_match('/^[A-Z][12]\d{8}$/', $id)) return false;
+    // 第二關：連號檢查（取字母後 9 碼數字）
+    if (hasConsecutivePattern(substr($id, 1))) return false;
+    // 第三關：檢查碼驗算
     $n = $map[$id[0]];
-    $digits = [$n % 10];          // 個位數放第 2 位
-    array_unshift($digits, intdiv($n, 10)); // 十位數放第 1 位
+    $digits = [$n % 10];
+    array_unshift($digits, intdiv($n, 10));
     for ($i = 1; $i < 10; $i++) $digits[] = (int)$id[$i];
     $weights = [1,9,8,7,6,5,4,3,2,1,1];
     $sum = 0;
@@ -332,9 +353,24 @@ body { display:flex; align-items:center; justify-content:center; min-height:100v
   var ID_MAP = {A:10,B:11,C:12,D:13,E:14,F:15,G:16,H:17,I:34,J:18,K:19,
                 L:20,M:21,N:22,O:35,P:23,Q:24,R:25,S:26,T:27,U:28,V:29,
                 W:32,X:30,Y:31,Z:33};
+  // 連號檢查：連續 4 碼相同或順序視為假造字號
+  function hasConsecutivePattern(digits) {
+    if (/(\d){3}/.test(digits)) return true;
+    var asc  = ['0123','1234','2345','3456','4567','5678','6789'];
+    var desc = ['9876','8765','7654','6543','5432','4321','3210'];
+    var all = asc.concat(desc);
+    for (var i = 0; i < all.length; i++) {
+      if (digits.indexOf(all[i]) !== -1) return true;
+    }
+    return false;
+  }
   function validateTwId(id) {
     id = id.toUpperCase();
+    // 第一關：格式正則
     if (!/^[A-Z][12]\d{8}$/.test(id)) return false;
+    // 第二關：連號檢查（字母後 9 碼）
+    if (hasConsecutivePattern(id.slice(1))) return false;
+    // 第三關：檢查碼驗算
     var n = ID_MAP[id[0]];
     var digits = [Math.floor(n / 10), n % 10];
     for (var i = 1; i < 10; i++) digits.push(parseInt(id[i], 10));
@@ -372,10 +408,10 @@ body { display:flex; align-items:center; justify-content:center; min-height:100v
     updateSubmit(idVerified);
   });
 
-  // 點擊 disabled 欄位時警告
+  // 點擊 disabled 欄位時警告（監聽外層 div，因 disabled 元素不觸發 click）
   fields.forEach(function(f) {
-    f.addEventListener('click', function () {
-      if (this.disabled) alert('請先完成身分證驗證');
+    f.closest('.reg-field').addEventListener('click', function () {
+      if (f.disabled) alert('請先完成身分證驗證');
     });
   });
 
