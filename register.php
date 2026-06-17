@@ -31,6 +31,24 @@ function recordRegAttempt(): void {
     $_SESSION['reg_attempts'] = $r;
 }
 
+// ── 台灣身分證字號檢查碼驗證 ─────────────────────────────
+function validateTwId(string $id): bool {
+    // 字母對應數字表（A=10 ... Z=35，按內政部對照）
+    $map = ['A'=>10,'B'=>11,'C'=>12,'D'=>13,'E'=>14,'F'=>15,'G'=>16,'H'=>17,
+            'I'=>34,'J'=>18,'K'=>19,'L'=>20,'M'=>21,'N'=>22,'O'=>35,'P'=>23,
+            'Q'=>24,'R'=>25,'S'=>26,'T'=>27,'U'=>28,'V'=>29,'W'=>32,'X'=>30,
+            'Y'=>31,'Z'=>33];
+    if (!preg_match('/^[A-Z][12]\d{8}$/', $id)) return false;
+    $n = $map[$id[0]];
+    $digits = [$n % 10];          // 個位數放第 2 位
+    array_unshift($digits, intdiv($n, 10)); // 十位數放第 1 位
+    for ($i = 1; $i < 10; $i++) $digits[] = (int)$id[$i];
+    $weights = [1,9,8,7,6,5,4,3,2,1,1];
+    $sum = 0;
+    foreach ($weights as $k => $w) $sum += $digits[$k] * $w;
+    return ($sum % 10) === 0;
+}
+
 // ── 個資遮罩輔助（用於 log，避免原始資料出現在記錄中）──
 function maskIdNumber(string $id): string {
     // A123456789 → A1****6789
@@ -95,9 +113,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($username) || !empty($pwError) || empty($realName) || empty($idNumber) || empty($phone)) {
             $status  = 'error';
             $message = !empty($pwError) ? $pwError : '所有欄位皆為必填';
-        } elseif (!preg_match('/^[A-Z][12]\d{8}$/', $idNumber)) {
+        } elseif (!validateTwId($idNumber)) {
             $status  = 'error';
-            $message = '身分證字號格式不正確（例：A123456789）';
+            $message = '身分證字號格式或檢查碼不正確（例：A123456789）';
         } else {
             $db = getDB();
             recordRegAttempt(); // 只在格式驗證通過後才計入
@@ -262,39 +280,43 @@ body { display:flex; align-items:center; justify-content:center; min-height:100v
 
     <form method="post" novalidate>
       <div class="reg-field">
-        <label>登入帳號 <span style="color:var(--red-500)">*</span></label>
-        <input type="text" name="username" class="reg-input"
-               placeholder="設定您的登入帳號"
-               value="<?php echo htmlspecialchars($_POST['username'] ?? ''); ?>"
-               autocomplete="username" required>
-      </div>
-      <div class="reg-field">
-        <label>密碼（至少 8 個字元，需含數字）<span style="color:var(--red-500)">*</span></label>
-        <input type="password" name="password" class="reg-input"
-               placeholder="設定登入密碼" autocomplete="new-password" minlength="8" required>
+        <label>身分證字號 <span style="color:var(--red-500)">*</span></label>
+        <input type="text" name="id_number" id="id_number" class="reg-input"
+               placeholder="例：A123456789" maxlength="10"
+               value="<?php echo htmlspecialchars($_POST['id_number'] ?? ''); ?>"
+               style="text-transform:uppercase" required autocomplete="off">
+        <div id="id-verify-msg" style="font-size:0.82em;margin-top:5px;min-height:1.2em;color:var(--green-700);display:none">
+          ✅ 身分證驗證通過
+        </div>
       </div>
       <div class="reg-field">
         <label>真實姓名 <span style="color:var(--red-500)">*</span></label>
-        <input type="text" name="real_name" class="reg-input"
+        <input type="text" name="real_name" id="f_real_name" class="reg-input"
                placeholder="請輸入真實姓名"
                value="<?php echo htmlspecialchars($_POST['real_name'] ?? ''); ?>"
-               required>
+               disabled required>
       </div>
       <div class="reg-field">
-        <label>身分證字號 <span style="color:var(--red-500)">*</span></label>
-        <input type="text" name="id_number" class="reg-input"
-               placeholder="例：A123456789" maxlength="10"
-               value="<?php echo htmlspecialchars($_POST['id_number'] ?? ''); ?>"
-               style="text-transform:uppercase" required>
+        <label>登入帳號 <span style="color:var(--red-500)">*</span></label>
+        <input type="text" name="username" id="f_username" class="reg-input"
+               placeholder="設定您的登入帳號"
+               value="<?php echo htmlspecialchars($_POST['username'] ?? ''); ?>"
+               autocomplete="username" disabled required>
+      </div>
+      <div class="reg-field">
+        <label>密碼（至少 8 個字元，需含數字）<span style="color:var(--red-500)">*</span></label>
+        <input type="password" name="password" id="f_password" class="reg-input"
+               placeholder="設定登入密碼" autocomplete="new-password" minlength="8" disabled required>
       </div>
       <div class="reg-field">
         <label>聯絡電話 <span style="color:var(--red-500)">*</span></label>
-        <input type="tel" name="phone" class="reg-input"
+        <input type="tel" name="phone" id="f_phone" class="reg-input"
                placeholder="例：0912345678"
                value="<?php echo htmlspecialchars($_POST['phone'] ?? ''); ?>"
-               required>
+               disabled required>
       </div>
-      <button type="submit" class="reg-btn">📨 送出申請</button>
+      <button type="submit" id="reg-submit" class="reg-btn" disabled
+              style="opacity:0.5;cursor:not-allowed">📨 送出申請</button>
     </form>
 
     <div class="reg-hint">
@@ -304,5 +326,74 @@ body { display:flex; align-items:center; justify-content:center; min-height:100v
 
   </div>
 </div>
+<script>
+(function () {
+  // 台灣身分證檢查碼驗證（前端同步版）
+  var ID_MAP = {A:10,B:11,C:12,D:13,E:14,F:15,G:16,H:17,I:34,J:18,K:19,
+                L:20,M:21,N:22,O:35,P:23,Q:24,R:25,S:26,T:27,U:28,V:29,
+                W:32,X:30,Y:31,Z:33};
+  function validateTwId(id) {
+    id = id.toUpperCase();
+    if (!/^[A-Z][12]\d{8}$/.test(id)) return false;
+    var n = ID_MAP[id[0]];
+    var digits = [Math.floor(n / 10), n % 10];
+    for (var i = 1; i < 10; i++) digits.push(parseInt(id[i], 10));
+    var w = [1,9,8,7,6,5,4,3,2,1,1], sum = 0;
+    for (var j = 0; j < 11; j++) sum += digits[j] * w[j];
+    return sum % 10 === 0;
+  }
+
+  var idInput   = document.getElementById('id_number');
+  var verifyMsg = document.getElementById('id-verify-msg');
+  var submitBtn = document.getElementById('reg-submit');
+  var fields    = ['f_real_name','f_username','f_password','f_phone']
+                    .map(function(id){ return document.getElementById(id); });
+
+  function allFilled() {
+    return fields.every(function(f){ return f.value.trim() !== ''; });
+  }
+
+  function updateSubmit(idOk) {
+    var ok = idOk && allFilled();
+    submitBtn.disabled = !ok;
+    submitBtn.style.opacity = ok ? '1' : '0.5';
+    submitBtn.style.cursor  = ok ? 'pointer' : 'not-allowed';
+  }
+
+  var idVerified = false;
+
+  // 身分證即時驗證
+  idInput.addEventListener('input', function () {
+    var val = this.value.toUpperCase();
+    this.value = val;
+    idVerified = validateTwId(val);
+    verifyMsg.style.display = idVerified ? 'block' : 'none';
+    fields.forEach(function(f){ f.disabled = !idVerified; });
+    updateSubmit(idVerified);
+  });
+
+  // 點擊 disabled 欄位時警告
+  fields.forEach(function(f) {
+    f.addEventListener('click', function () {
+      if (this.disabled) alert('請先完成身分證驗證');
+    });
+  });
+
+  // 其他欄位有值時即時更新送出按鈕狀態
+  fields.forEach(function(f) {
+    f.addEventListener('input', function () {
+      updateSubmit(idVerified);
+    });
+  });
+
+  // 頁面載入：若後端回填了合法身分證（驗證失敗重新顯示表單時）自動解鎖
+  if (validateTwId(idInput.value)) {
+    idVerified = true;
+    verifyMsg.style.display = 'block';
+    fields.forEach(function(f){ f.disabled = false; });
+    updateSubmit(true);
+  }
+})();
+</script>
 </body>
 </html>
