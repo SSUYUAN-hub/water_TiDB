@@ -26,12 +26,28 @@ const LOGIN_MAX_ATTEMPTS = 10;   // 同一 IP+帳號 最多嘗試次數
 const LOGIN_LOCKOUT_SEC  = 600;  // 鎖定時間（秒）：10 分鐘
 
 /**
- * 產生 identifier：REMOTE_ADDR:username
- * 不使用 X-Forwarded-For 避免 header 偽造風險
+ * 取得客戶端真實 IP。
+ * Render 使用反向代理，REMOTE_ADDR 為 load balancer IP，
+ * 必須讀取 X-Forwarded-For 第一個位置才是使用者真實 IP。
+ * Render 基礎設施層會過濾外部偽造的 X-Forwarded-For，
+ * 但仍做基本格式驗證作為防禦。
+ */
+function getClientIp(): string {
+    $forwarded = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '';
+    if ($forwarded !== '') {
+        $ip = trim(explode(',', $forwarded)[0]);
+        if (filter_var($ip, FILTER_VALIDATE_IP)) {
+            return $ip;
+        }
+    }
+    return $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+}
+
+/**
+ * 產生 identifier：clientIP:username
  */
 function loginIdentifier(string $username): string {
-    $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
-    return $ip . ':' . mb_strtolower(trim($username));
+    return getClientIp() . ':' . mb_strtolower(trim($username));
 }
 
 function getLoginAttempts(string $identifier): array {

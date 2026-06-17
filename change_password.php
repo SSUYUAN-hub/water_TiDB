@@ -8,6 +8,7 @@ $message = '';
 $msgType = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verifyCsrf();
     $oldPass  = $_POST['old_password']  ?? '';
     $newPass  = $_POST['new_password']  ?? '';
     $newPass2 = $_POST['new_password2'] ?? '';
@@ -16,8 +17,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $message = '請填寫所有欄位'; $msgType = 'error';
     } elseif ($newPass !== $newPass2) {
         $message = '新密碼兩次輸入不一致'; $msgType = 'error';
-    } elseif (strlen($newPass) < 6) {
-        $message = '新密碼至少需要 6 個字元'; $msgType = 'error';
+    } elseif (($pwErr = validatePasswordStrength($newPass)) !== '') {
+        $message = $pwErr; $msgType = 'error';
     } else {
         $stmt = getDB()->prepare('SELECT password_hash FROM users WHERE id = ?');
         $stmt->execute([$user['id']]);
@@ -91,20 +92,21 @@ body { background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 40%, #e3f2fd 100%
   <div class="card">
     <div class="card-title">🔐 修改登入密碼</div>
     <form method="post" onsubmit="return validateForm()">
+      <?php csrfField(); ?>
       <div class="pw-field">
         <label>目前密碼</label>
         <input type="password" name="old_password" class="pw-input"
                placeholder="輸入目前密碼" required autocomplete="current-password">
       </div>
       <div class="pw-field">
-        <label>新密碼（至少 6 個字元）</label>
+        <label>新密碼（至少 8 個字元，需包含數字）</label>
         <input type="password" name="new_password" id="pw-new" class="pw-input"
-               placeholder="輸入新密碼" minlength="6" required autocomplete="new-password">
+               placeholder="輸入新密碼" minlength="8" required autocomplete="new-password">
       </div>
       <div class="pw-field">
         <label>確認新密碼</label>
         <input type="password" name="new_password2" id="pw-new2" class="pw-input"
-               placeholder="再次輸入新密碼" minlength="6" required autocomplete="new-password">
+               placeholder="再次輸入新密碼" minlength="8" required autocomplete="new-password">
       </div>
       <div style="display:flex;gap:10px;margin-top:4px">
         <button type="submit" class="btn btn-primary" style="flex:1">🔐 確認修改密碼</button>
@@ -125,7 +127,6 @@ function validateForm() {
   const n1 = document.getElementById('pw-new').value;
   const n2 = document.getElementById('pw-new2').value;
   if (n1 !== n2) { alert('新密碼兩次輸入不一致'); return false; }
-  if (n1.length < 6) { alert('新密碼至少需要 6 個字元'); return false; }
   return true;
 }
 </script>
