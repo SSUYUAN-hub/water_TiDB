@@ -589,6 +589,7 @@ function checkNightShift(?string $endTime, ?string $startTime = ''): bool {
 <div class="month-title"><?php echo $yearMonth; ?> 出勤記錄</div>
 
 <form action="batch_handler.php" method="post" id="batchForm">
+    <?php csrfField(); ?>
     <input type="hidden" name="employee_name" value="<?php echo htmlspecialchars($employeeName); ?>">
     <input type="hidden" name="emp_type"      value="<?php echo $empType; ?>">
     <input type="hidden" name="hourly_rate"   value="<?php echo $wage; ?>">
