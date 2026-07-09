@@ -34,7 +34,7 @@ function sendSecurityHeaders(): void {
     header('X-Content-Type-Options: nosniff');
     header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
     header('Referrer-Policy: strict-origin-when-cross-origin');
-    header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'");
+    header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; object-src 'none'; base-uri 'self'; form-action 'self'");
     header('X-Powered-By: ');
 }
 
