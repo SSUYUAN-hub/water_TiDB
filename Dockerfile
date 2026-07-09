@@ -35,5 +35,4 @@ RUN if [ -f "composer.json" ]; then \
 
 # 8. 設定權限
 RUN chown -R www-data:www-data /var/www/html/
-
 EXPOSE 80
