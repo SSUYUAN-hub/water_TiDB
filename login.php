@@ -162,7 +162,18 @@ if (isLoginLocked($_loginId)) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+<!-- PWA / 加到主畫面 捷徑設定 -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2E7D32">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="薪資結算系統">
+<meta name="mobile-web-app-capable" content="yes">
+
 <title>登入 — 薪資結算系統</title>
 <link rel="stylesheet" href="responsive.css">
 <style>
