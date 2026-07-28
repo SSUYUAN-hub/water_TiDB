@@ -69,6 +69,9 @@ if ($skipScan && $isSide2) {
 
 if (!$skipScan && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['card_image'])) {
     try {
+        if (empty($geminiKey)) {
+            throw new Exception('系統未設定 GEMINI_API_KEY，請聯繫系統管理員設定環境變數後再使用打卡辨識功能');
+        }
         $uploadErr = $_FILES['card_image']['error'] ?? UPLOAD_ERR_NO_FILE;
         if ($uploadErr !== UPLOAD_ERR_OK) {
             $uploadErrMsg = [
@@ -147,7 +150,7 @@ PROMPT;
             ],
         ]);
 
-        $model = 'gemini-3.1-flash-lite';
+        $model = 'gemini-2.5-flash';
         $url   = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$geminiKey}";
 
         $ch = curl_init($url);

@@ -5,8 +5,11 @@ ini_set('log_errors', 1);
 error_reporting(E_ALL);
 
 // Session 安全設定
+// cookie_secure 僅在確實為 HTTPS 時開啟，避免 HTTP 本機開發/測試環境登入後 session 遺失
+$isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+    || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
 ini_set('session.cookie_httponly', 1);
-ini_set('session.cookie_secure', 1);
+ini_set('session.cookie_secure', $isHttps ? 1 : 0);
 ini_set('session.cookie_samesite', 'Strict');
 session_start();
 require_once __DIR__ . '/vendor/autoload.php';

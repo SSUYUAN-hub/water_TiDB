@@ -6,8 +6,11 @@
 
 if (session_status() === PHP_SESSION_NONE) {
     // Session Cookie 安全旗標（集中設定，全站統一生效）
+    // cookie_secure 僅在確實為 HTTPS 時開啟，避免 HTTP 本機開發/測試環境登入後 session 遺失
+    $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
     ini_set('session.cookie_httponly', 1);
-    ini_set('session.cookie_secure',   1);
+    ini_set('session.cookie_secure',   $isHttps ? 1 : 0);
     ini_set('session.cookie_samesite', 'Strict');
     session_start();
 }

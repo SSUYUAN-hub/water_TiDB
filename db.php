@@ -27,12 +27,19 @@ function getDB(): PDO {
 
 $dsn = "mysql:host={$host};port={$port};dbname={$dbname};charset={$charset}";
 
-$pdo = new PDO($dsn, $user, $pass, [
+$options = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     PDO::ATTR_EMULATE_PREPARES   => false,
-    PDO::MYSQL_ATTR_SSL_CA       => '/etc/ssl/certs/ca-certificates.crt',
-]);
+];
+
+// SSL CA 憑證僅在該路徑存在時才套用（Linux 部署環境才有，Windows/本機開發沒有）
+$sslCaPath = $_ENV['DB_SSL_CA'] ?? $_SERVER['DB_SSL_CA'] ?? '/etc/ssl/certs/ca-certificates.crt';
+if (file_exists($sslCaPath)) {
+    $options[PDO::MYSQL_ATTR_SSL_CA] = $sslCaPath;
+}
+
+$pdo = new PDO($dsn, $user, $pass, $options);
 
     return $pdo;
 }

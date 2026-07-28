@@ -1008,6 +1008,7 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
         <!-- 隱藏匯出 forms -->
         <?php if (!empty($attendances)): ?>
             <form id="export-form" method="post" style="display:none">
+                <?php csrfField(); ?>
                 <input type="hidden" name="action" value="export_db">
                 <input type="hidden" name="export_emp" value="<?php echo htmlspecialchars($selEmp); ?>">
                 <input type="hidden" name="export_ym" value="<?php echo $selYM; ?>">
@@ -1016,10 +1017,12 @@ if ($searched && $queryMode === 'month' && $selEmpType === 'fulltime' && $selEmp
 
         <?php if ($isAdmin): ?>
             <form id="export-year-form" method="post" style="display:none">
+                <?php csrfField(); ?>
                 <input type="hidden" name="action" value="export_year">
                 <input type="hidden" name="export_year" value="<?php echo htmlspecialchars($selYear); ?>">
             </form>
             <form id="export-month-all-form" method="post" style="display:none">
+                <?php csrfField(); ?>
                 <input type="hidden" name="action" value="export_month_all">
                 <input type="hidden" name="export_ym_all" value="<?php echo htmlspecialchars($selYM); ?>">
             </form>
